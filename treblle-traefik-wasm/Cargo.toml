@@ -1,0 +1,42 @@
+[package]
+    name                 = "treblle-traefik-wasm"
+    description          = "Treblle integration for Traefik WASM middleware"
+    include = ["/src"]
+    version.workspace    = true
+    edition.workspace    = true
+    authors.workspace    = true
+    license.workspace    = true
+    repository.workspace = true
+    homepage.workspace   = true
+    rust-version.workspace = true
+
+[lints]
+    workspace = true
+
+[lib]
+    crate-type = ["cdylib"]
+
+[dependencies]
+    treblle-core = { path = "../treblle-core" }
+    wit-bindgen-rt = { version = "0.33.0", features = [
+        "bitflags",
+    ], default-features = false }
+    once_cell = "1.19.0"
+    rustls = { version = "0.21", features = [
+        "dangerous_configuration",
+        "tls12",
+    ] }
+    webpki-roots = "0.25"
+    url = "2.5.2"
+    rustls-pemfile = "2.2.0"
+    lazy_static = "1.5.0"
+    serde = { version = "1.0.210", features = ["derive"] }
+    serde_json = "1.0.128"
+    chrono = "0.4.38"
+    http = "1.1.0"
+    wasmedge_wasi_socket = "0.5.5"
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+    ring = { version = "0.17.8", features = [
+        "less-safe-getrandom-custom-or-rdrand",
+    ] }

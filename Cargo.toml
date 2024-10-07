@@ -1,0 +1,95 @@
+[workspace]
+    resolver = "2"
+    members = [
+        "treblle-core",
+        "treblle-traefik-wasm",
+        "treblle-actix",
+        "treblle-axum",
+        "treblle-rocket",
+    ]
+
+    [workspace.package]
+        version    = "0.1.0"
+        edition    = "2021"
+        authors    = ["Treblle <development@momo.gg>"]
+        license    = "MIT"
+        repository = "https://github.com/Treblle/treblle-rust"
+        homepage   = "https://treblle.com/"
+        rust-version = "1.80.1"
+
+[workspace.lints.rust]
+    absolute_paths_not_starting_with_crate = "warn"
+    non_ascii_idents = "warn"
+    unit-bindings = "warn"
+    unexpected_cfgs = { level = "warn", check-cfg = ['cfg(coverage)', 'cfg(coverage_nightly)'] }
+
+[workspace.lints.clippy]
+    all = { level = "warn", priority = -1 }
+    empty_docs = { level = "allow", priority = 1 }
+    # restriction
+    dbg_macro = "warn"
+    todo = "warn"
+    unimplemented = "warn"
+    print_stdout = "warn" # Must be opt-in
+    print_stderr = "warn" # Must be opt-in
+    allow_attributes = "warn"
+    # I like the explicitness of this rule as it removes confusion around `clone`.
+    # This increases readability, avoids `clone` mindlessly and heap allocating by accident.
+    clone_on_ref_ptr = "warn"
+    # These two are mutually exclusive, I like `mod.rs` files for better fuzzy searches on module entries.
+    self_named_module_files = "warn" # "-Wclippy::mod_module_files"
+    empty_drop = "warn"
+    empty_structs_with_brackets = "warn"
+    exit = "warn"
+    filetype_is_file = "warn"
+    get_unwrap = "warn"
+    impl_trait_in_params = "warn"
+    rc_buffer = "warn"
+    rc_mutex = "warn"
+    rest_pat_in_fully_bound_structs = "warn"
+    unnecessary_safety_comment = "warn"
+    undocumented_unsafe_blocks = "warn"
+    infinite_loop = "warn"
+    # I want to write the best Rust code so pedantic is enabled.
+    # We should only disable rules globally if they are either false positives, chaotic, or does not make sense.
+    pedantic = { level = "warn", priority = -1 }
+    # Allowed rules
+    # pedantic
+    # This rule is too pedantic, I don't want to force this because naming things are hard.
+    module_name_repetitions = "allow"
+    # All triggers are mostly ignored in our codebase, so this is ignored globally.
+    struct_excessive_bools = "allow"
+    too_many_lines = "allow"
+    # `#[must_use]` is creating too much noise for this codebase, it does not add much value
+    # except nagging the programmer to add a `#[must_use]` after clippy has been run.
+    # Having `#[must_use]` everywhere also hinders readability.
+    must_use_candidate = "allow"
+    # used_underscore_binding= "allow"
+    doc_markdown = "allow"
+    # nursery
+    # `const` functions do not make sense for our project because this is not a `const` library.
+    # This rule also confuses newcomers and forces them to add `const` blindlessly without any reason.
+    missing_const_for_fn = "allow"
+    # cargo
+    cargo = { level = "warn", priority = -1 }
+    multiple_crate_versions = "allow"
+
+[profile.dev]
+    # Disabling debug info speeds up local and CI builds,
+    # and we don't rely on it for debugging that much.
+    debug = false
+
+[profile.release]
+    lto = true
+    opt-level = 'z' # Optimize for binary size
+    codegen-units = 1
+    panic = 'abort' # Let it crash and force ourselves to write safe Rust
+    strip = true
+    debug = false
+
+# Profile used for release mode, but with debugging information for profiling
+# and debugging. Use `cargo build --profile=release-with-debug` to build with this profile.
+[profile.release-with-debug]
+    inherits = "release"
+    strip = false # Keep debug information in binary
+    debug = true # Include maximum amount of debug information

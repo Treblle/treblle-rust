@@ -1,0 +1,23 @@
+displayName: Treblle WASM
+
+# For now, `middleware` is the only type available.
+type: middleware
+
+runtime: wasm
+
+import: github.com/Treblle/treblle-rust
+
+summary: A middleware plugin for logging requests and responses to Treblle API
+
+# Configuration data for your plugin.
+# This is mandatory, and Plugins Catalog will try to execute the plugin with the data you provide as part of its startup validity tests.
+# No idea why Traefik calls this "testData" instead of "configuration" or something legit.
+testData:
+  treblleApiUrls:
+    [
+      "https://rocknrolla.treblle.com",
+      "https://punisher.treblle.com",
+      "https://sicario.treblle.com",
+    ]
+
+iconPath: .assets/logo-200.png

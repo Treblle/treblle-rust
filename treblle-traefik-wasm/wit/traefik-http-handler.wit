@@ -1,0 +1,10 @@
+package traefik:http-handler@0.1.0;
+
+interface handler {
+    handle-request: func() -> s64;
+    handle-response: func(req-ctx: s32, is-error: s32);
+}
+
+world http-handler {
+    export handler;
+}

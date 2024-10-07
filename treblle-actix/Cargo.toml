@@ -1,0 +1,26 @@
+[package]
+    name                 = "treblle-actix"
+    description          = "Treblle integration for Actix web framework"
+    include = ["/src"]
+    version.workspace    = true
+    edition.workspace    = true
+    authors.workspace    = true
+    license.workspace    = true
+    repository.workspace = true
+    homepage.workspace   = true
+    rust-version.workspace = true
+
+[lints]
+    workspace = true
+
+[dependencies]
+    treblle-core = { path = "../treblle-core" }
+    actix-web    = "4.0"
+    actix-http   = "3.0"
+    futures      = "0.3"
+    reqwest      = { version = "0.12.8", features = ["json"] }
+    tokio        = { version = "1.0", features = ["rt", "time"] }
+    log          = "0.4"
+serde = { version = "1.0.210", features = ["derive"] }
+chrono = "0.4.38"
+futures-util = "0.3.31"
