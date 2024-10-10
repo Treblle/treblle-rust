@@ -1,18 +1,17 @@
 use reqwest::Client;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use treblle_core::schema::TrebllePayload;
-use treblle_core::error::Result as TreblleResult;
-use crate::config::ActixConfig;
-
+use crate::schema::TrebllePayload;
+use crate::error::Result as TreblleResult;
+use crate::Config;
 
 pub struct TreblleClient {
     client: Client,
-    config: ActixConfig,
+    config: Config,
     current_url_index: AtomicUsize,
 }
 
 impl TreblleClient {
-    pub fn new(config: ActixConfig) -> Self {
+    pub fn new(config: Config) -> Self {
         Self {
             client: Client::new(),
             config,
@@ -21,21 +20,21 @@ impl TreblleClient {
     }
 
     fn get_next_url(&self) -> String {
-        let index = self.current_url_index.fetch_add(1, Ordering::SeqCst) % self.config.core.api_urls.len();
-        self.config.core.api_urls[index].clone()
+        let index = self.current_url_index.fetch_add(1, Ordering::SeqCst) % self.config.api_urls.len();
+        self.config.api_urls[index].clone()
     }
 
-    async fn send_to_treblle(&self, payload: TrebllePayload) -> TreblleResult<()> {
+    pub async fn send_to_treblle(&self, payload: TrebllePayload) -> TreblleResult<()> {
         let url = self.get_next_url();
         let res = self.client
             .post(&url)
             .json(&payload)
-            .header("x-api-key", &self.config.core.api_key)
+            .header("x-api-key", &self.config.api_key)
             .send()
             .await?;
 
         if !res.status().is_success() {
-            return Err(treblle_core::error::TreblleError::Http(format!(
+            return Err(crate::error::TreblleError::Http(format!(
                 "Failed to send payload to Treblle. Status: {}",
                 res.status()
             )));

@@ -9,11 +9,14 @@ pub mod error;
 pub mod payload;
 pub mod utils;
 pub mod schema;
+pub mod http_client;
+pub mod extractors;
 
 pub use config::Config;
 pub use error::{Result, TreblleError};
-pub use payload::{ErrorInfo, LanguageInfo, Payload, RequestInfo, ResponseInfo, ServerInfo};
+pub use payload::{ErrorInfo, LanguageInfo, PayloadBuilder, RequestInfo, ResponseInfo, ServerInfo, mask_payload};
 pub use utils::{is_json, mask_sensitive_data};
+pub use http_client::TreblleClient;
 
 /// The version of the Treblle SDK.
 pub const TREBLLE_SDK_VERSION: &str = env!("CARGO_PKG_VERSION");

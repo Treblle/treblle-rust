@@ -1,19 +1,22 @@
-use actix_web::dev::{ServiceRequest, ServiceResponse};
+use axum::http::{Request, Response};
+use axum::body::Body;
 use std::time::Duration;
 use treblle_core::payload::HttpExtractor;
 use treblle_core::schema::{RequestInfo, ResponseInfo};
+use hyper::body::Bytes;
 
-pub struct ActixExtractor;
+pub struct AxumExtractor;
 
-impl HttpExtractor for ActixExtractor {
-    type Request = ServiceRequest;
-    type Response = ServiceResponse;
+impl HttpExtractor for AxumExtractor {
+    type Request = Request<Body>;
+    type Response = Response<Body>;
 
     fn extract_request_info(req: &Self::Request) -> RequestInfo {
         RequestInfo {
             timestamp: chrono::Utc::now(),
-            ip: req.connection_info().realip_remote_addr()
-                .unwrap_or("unknown").to_string(),
+            ip: req.extensions().get::<String>()
+                .cloned()
+                .unwrap_or_else(|| "unknown".to_string()),
             url: req.uri().to_string(),
             user_agent: req.headers().get("User-Agent")
                 .and_then(|h| h.to_str().ok())
@@ -22,8 +25,8 @@ impl HttpExtractor for ActixExtractor {
             headers: req.headers().iter()
                 .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
                 .collect(),
-            body: req.request().body().as_ref()
-                .map(|b| String::from_utf8_lossy(b.as_ref()).to_string()),
+            body: req.extensions().get::<Bytes>()
+                .map(|bytes| String::from_utf8_lossy(bytes).to_string()),
         }
     }
 
@@ -33,12 +36,10 @@ impl HttpExtractor for ActixExtractor {
                 .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
                 .collect(),
             code: res.status().as_u16(),
-            size: res.response().body().size() as u64,
+            size: res.extensions().get::<u64>().cloned().unwrap_or(0),
             load_time: duration.as_secs_f64(),
-            body: match res.response().body() {
-                actix_web::body::Body::Bytes(b) => Some(String::from_utf8_lossy(b).to_string()),
-                _ => None,
-            },
+            body: res.extensions().get::<Bytes>()
+                .map(|bytes| String::from_utf8_lossy(bytes).to_string()),
         }
     }
 }

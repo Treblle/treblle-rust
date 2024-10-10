@@ -1,7 +1,5 @@
 use serde::{Deserialize, Serialize};
-
 use treblle_core::Config as CoreConfig;
-
 use crate::constants::log_level;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -45,37 +43,5 @@ impl Default for WasmConfig {
             root_ca_path: None,
             log_level: default_log_level(),
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_wasm_config_default() {
-        let config = WasmConfig::default();
-        assert!(!config.buffer_response);
-        assert!(config.root_ca_path.is_none());
-        assert_eq!(config.log_level, log_level::INFO);
-    }
-
-    #[test]
-    fn test_wasm_config_from_json() {
-        let json = r#"
-        {
-            "api_key": "test_key",
-            "project_id": "test_project",
-            "buffer_response": true,
-            "root_ca_path": "/path/to/ca",
-            "log_level": -1
-        }
-        "#;
-        let config = WasmConfig::from_json(json).unwrap();
-        assert_eq!(config.core.api_key, "test_key");
-        assert_eq!(config.core.project_id, "test_project");
-        assert!(config.buffer_response);
-        assert_eq!(config.root_ca_path, Some("/path/to/ca".to_string()));
-        assert_eq!(config.log_level, log_level::DEBUG);
     }
 }

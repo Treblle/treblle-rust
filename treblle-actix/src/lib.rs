@@ -3,7 +3,6 @@
 mod config;
 mod extractors;
 mod middleware;
-mod http_client;
 
 use actix_web::dev::Payload;
 use actix_web::web::Data;

@@ -1,3 +1,4 @@
+use regex::Regex;
 use serde::{Deserialize, Serialize};
 
 use crate::error::{Result, TreblleError};
@@ -19,7 +20,7 @@ pub struct Config {
     pub masked_fields: Vec<String>,
     /// Routes to ignore when sending data to Treblle.
     #[serde(default)]
-    pub ignored_routes: Vec<String>,
+    pub ignored_routes: Vec<Regex>,
 }
 
 impl Default for Config {
@@ -67,7 +68,7 @@ impl Config {
 
     /// Add routes to ignore.
     pub fn add_ignored_routes(&mut self, routes: Vec<String>) -> &mut Self {
-        self.ignored_routes.extend(routes);
+        self.ignored_routes.extend(routes.into_iter().map(|r| Regex::new(&r).expect("Invalid regex")));
         self
     }
 
@@ -116,7 +117,7 @@ mod tests {
     fn test_config_add_ignored_routes() {
         let mut config = Config::new("api_key".to_string(), "project_id".to_string());
         config.add_ignored_routes(vec!["/health".to_string()]);
-        assert!(config.ignored_routes.contains(&"/health".to_string()));
+        assert!(config.ignored_routes.iter().any(|r| r.as_str() == "/health"));
     }
 
     #[test]
@@ -148,6 +149,6 @@ mod tests {
         assert_eq!(config.project_id, "test_project");
         assert_eq!(config.api_urls, vec!["https://custom.treblle.com"]);
         assert_eq!(config.masked_fields, vec!["custom_field"]);
-        assert_eq!(config.ignored_routes, vec!["/test"]);
+        assert!(config.ignored_routes.iter().any(|r| r.as_str() == "/test"));
     }
 }

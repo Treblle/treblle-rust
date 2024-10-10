@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
-use treblle_core::Config as CoreConfig;
+
+use treblle_core::Config;
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ActixConfig {
     #[serde(flatten)]
-    pub core: CoreConfig,
+    pub core: Config,
     // Add any Actix-specific configuration options here
     // For example:
     #[serde(default)]
@@ -14,7 +15,7 @@ pub struct ActixConfig {
 impl ActixConfig {
     pub fn new(api_key: String, project_id: String) -> Self {
         ActixConfig {
-            core: CoreConfig::new(api_key, project_id),
+            core: Config::new(api_key, project_id),
             buffer_response: false,
         }
     }
@@ -28,7 +29,7 @@ impl ActixConfig {
 impl Default for ActixConfig {
     fn default() -> Self {
         ActixConfig {
-            core: CoreConfig::default(),
+            core: Config::default(),
             buffer_response: false,
         }
     }

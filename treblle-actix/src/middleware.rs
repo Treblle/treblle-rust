@@ -7,29 +7,24 @@ use std::{
     future::{ready, Ready},
     rc::Rc,
     time::Instant,
+    sync::Arc,
 };
 
 use log::{error, debug};
-use reqwest::Client;
-
-use treblle_core::payload::mask_payload;
-use treblle_core::schema::TrebllePayload;
-use treblle_core::error::Result as TreblleResult;
-
+use treblle_core::{schema::TrebllePayload, PayloadBuilder, TreblleClient};
 use crate::config::ActixConfig;
 use crate::extractors::ActixExtractor;
-use crate::http_client::TreblleClient;
 
 pub struct TreblleMiddleware {
     config: Rc<ActixConfig>,
-    treblle_client: TreblleClient,
+    treblle_client: Arc<TreblleClient>,
 }
 
 impl TreblleMiddleware {
     pub fn new(config: ActixConfig) -> Self {
         TreblleMiddleware {
             config: Rc::new(config.clone()),
-            treblle_client: TreblleClient::new(config.clone()),
+            treblle_client: Arc::new(TreblleClient::new(config.core)),
         }
     }
 }
@@ -50,7 +45,7 @@ where
         ready(Ok(TreblleMiddlewareService {
             service,
             config: self.config.clone(),
-            treblle_client: self.treblle_client,
+            treblle_client: self.treblle_client.clone(),
         }))
     }
 }
@@ -58,7 +53,7 @@ where
 pub struct TreblleMiddlewareService<S> {
     service: S,
     config: Rc<ActixConfig>,
-    treblle_client: TreblleClient,
+    treblle_client: Arc<TreblleClient>,
 }
 
 impl<S, B> Service<ServiceRequest> for TreblleMiddlewareService<S>
@@ -75,30 +70,25 @@ where
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
         let config = self.config.clone();
+        let treblle_client = self.treblle_client.clone();
         let start_time = Instant::now();
 
-        let should_process = !config.core.ignored_routes.iter().any(|route| req.path().starts_with(route));
+        let should_process = !config.core.ignored_routes.iter().any(|route| route.is_match(req.path()))
+            && req.headers().get("Content-Type")
+            .and_then(|ct| ct.to_str().ok())
+            .map(|ct| ct.starts_with("application/json"))
+            .unwrap_or(false);
 
         if should_process {
             debug!("Processing request for Treblle: {}", req.path());
-            match ActixExtractor::build_request_payload(
-                config.core.api_key.clone(),
-                config.core.project_id.clone(),
-                &req,
-            ) {
-                Ok(mut request_payload) => {
-                    mask_payload(&mut request_payload, &config.core.masked_fields);
+            let request_payload = PayloadBuilder::build_request_payload::<ActixExtractor>(&req, &config.core);
 
-                    let treblle_client = self.treblle_client.clone();
-
-                    tokio::spawn(async move {
-                        if let Err(e) = treblle_client.send_to_treblle(request_payload).await {
-                            log::error!("Failed to send request payload to Treblle: {:?}", e);
-                        }
-                    });
+            let treblle_client_clone = treblle_client.clone();
+            actix_web::rt::spawn(async move {
+                if let Err(e) = treblle_client_clone.send_to_treblle(request_payload).await {
+                    error!("Failed to send request payload to Treblle: {:?}", e);
                 }
-                Err(e) => error!("Failed to build request payload: {e}"),
-            }
+            });
         }
 
         let fut = self.service.call(req);
@@ -108,25 +98,15 @@ where
 
             if should_process {
                 debug!("Processing response for Treblle: {}", res.status());
-                match ActixExtractor::build_response_payload(
-                    config.core.api_key.clone(),
-                    config.core.project_id.clone(),
-                    &res,
-                    start_time,
-                ) {
-                    Ok(mut response_payload) => {
-                        mask_payload(&mut response_payload, &config.core.masked_fields);
+                let duration = start_time.elapsed();
 
-                        let treblle_client = self.treblle_client.clone();
+                let response_payload = PayloadBuilder::build_response_payload::<ActixExtractor>(&res, &config.core, duration);
 
-                        tokio::spawn(async move {
-                            if let Err(e) = treblle_client.send_to_treblle(response_payload).await {
-                                log::error!("Failed to send request payload to Treblle: {:?}", e);
-                            }
-                        });
+                actix_web::rt::spawn(async move {
+                    if let Err(e) = treblle_client.send_to_treblle(response_payload).await {
+                        error!("Failed to send response payload to Treblle: {:?}", e);
                     }
-                    Err(e) => error!("Failed to build response payload: {}", e),
-                }
+                });
             }
 
             Ok(res)
