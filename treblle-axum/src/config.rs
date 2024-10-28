@@ -16,12 +16,12 @@ impl AxumConfig {
     }
 
     pub fn add_masked_fields(&mut self, fields: Vec<String>) -> &mut Self {
-        self.core.add_masked_fields(fields);
+        self.core.add_masked_fields(fields).unwrap();
         self
     }
 
     pub fn add_ignored_routes(&mut self, routes: Vec<String>) -> &mut Self {
-        self.core.add_ignored_routes(routes);
+        self.core.add_ignored_routes(routes).unwrap();
         self
     }
 }
@@ -46,7 +46,7 @@ mod tests {
 
         assert_eq!(config.core.api_key, "test_key");
         assert_eq!(config.core.project_id, "test_project");
-        assert!(config.core.masked_fields.contains(&"password".to_string()));
-        assert!(config.core.ignored_routes.iter().any(|r| r.as_str() == "/health"));
+        assert!(config.core.masked_fields.iter().any(|r| r.as_str().contains("password")));
+        assert!(config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
     }
 }

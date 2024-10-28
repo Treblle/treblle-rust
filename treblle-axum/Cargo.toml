@@ -15,12 +15,22 @@
 
 [dependencies]
     treblle-core = { workspace = true }
-    axum         = "0.7"
-    hyper        = "1.0"
-    tower        = "0.5.1"
-    futures      = "0.3"
-    reqwest      = { version = "0.12.8", features = ["json"] }
-    tokio        = { version = "1.0", features = ["rt", "time"] }
-    log          = "0.4"
-chrono = "0.4.38"
-serde = { version = "1.0.210", features = ["derive"] }
+    axum = { version = "0.7", features = ["http1"] }
+    hyper = { version = "1.5.0", features = ["full"] }
+    hyper-util = { version = "0.1", features = ["full"] }
+    tower = { version = "0.5.1", features = ["util"] }
+    futures = "0.3"
+    tokio = { workspace = true }
+    tracing = { workspace = true, features = ["log"] }
+    tracing-subscriber = { workspace = true, features = ["env-filter"] }
+    chrono = { version = "0.4", features = ["serde"] }
+    serde = { workspace = true }
+    serde_json = { workspace = true }
+    bytes = "1.0"
+
+
+[dev-dependencies]
+    tokio-test = "0.4"
+    http-body-util = "0.1"
+    tower-http = { version = "0.6.1", features = ["trace", "timeout"] }
+    http = "1.1.0"

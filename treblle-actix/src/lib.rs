@@ -4,9 +4,8 @@ mod config;
 mod extractors;
 mod middleware;
 
-use actix_web::dev::Payload;
-use actix_web::web::Data;
-use actix_web::{Error, FromRequest, HttpMessage, HttpRequest};
+use actix_web::{dev::Payload, web};
+use actix_web::{Error, FromRequest, HttpRequest};
 use std::future::{ready, Ready};
 
 pub use config::ActixConfig;
@@ -25,21 +24,15 @@ impl Treblle {
         }
     }
 
-    /// Set whether to buffer the response
-    pub fn buffer_response(mut self, buffer: bool) -> Self {
-        self.config = self.config.buffer_response(buffer);
-        self
-    }
-
     /// Add additional fields to mask
     pub fn add_masked_fields(mut self, fields: Vec<String>) -> Self {
-        self.config.core.add_masked_fields(fields);
+        self.config.core.add_masked_fields(fields).expect("Invalid masked field pattern");
         self
     }
 
     /// Add routes to ignore
     pub fn add_ignored_routes(mut self, routes: Vec<String>) -> Self {
-        self.config.core.add_ignored_routes(routes);
+        self.config.core.add_ignored_routes(routes).expect("Invalid route pattern");
         self
     }
 
@@ -58,7 +51,7 @@ impl FromRequest for TreblleConfig {
 
     fn from_request(req: &HttpRequest, _: &mut Payload) -> Self::Future {
         ready(Ok(TreblleConfig(
-            req.app_data::<Data<ActixConfig>>()
+            req.app_data::<web::Data<ActixConfig>>()
                 .expect("Treblle middleware not configured")
                 .get_ref()
                 .clone(),
@@ -69,18 +62,39 @@ impl FromRequest for TreblleConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use actix_web::{test, App, web};
 
-    #[test]
-    fn test_treblle_builder() {
+    #[actix_web::test]
+    async fn test_treblle_builder() {
         let treblle = Treblle::new("api_key".to_string(), "project_id".to_string())
-            .buffer_response(true)
-            .add_masked_fields(vec!["password".to_string()])
+            .add_masked_fields(vec!["custom_field".to_string()])
             .add_ignored_routes(vec!["/health".to_string()]);
 
         assert_eq!(treblle.config.core.api_key, "api_key");
         assert_eq!(treblle.config.core.project_id, "project_id");
-        assert!(treblle.config.buffer_response);
-        assert!(treblle.config.core.masked_fields.contains(&"password".to_string()));
-        assert!(treblle.config.core.ignored_routes.contains(&"/health".to_string()));
+        assert!(treblle.config.core.masked_fields.iter()
+            .any(|r| r.as_str().contains("custom_field")));
+        assert!(treblle.config.core.ignored_routes.iter()
+            .any(|r| r.as_str().contains("/health")));
+    }
+
+    #[actix_web::test]
+    async fn test_treblle_config_extraction() {
+        let config = ActixConfig::new("test_key".to_string(), "test_project".to_string());
+
+        let app = test::init_service(
+            App::new()
+                .app_data(web::Data::new(config.clone()))
+                .route("/test", web::get().to(|| async { "ok" }))
+        ).await;
+
+        let req = test::TestRequest::default()
+            .to_request();
+
+        let srv_req = test::call_service(&app, req).await;
+        let config_extracted = TreblleConfig::extract(&srv_req.request()).await.unwrap();
+
+        assert_eq!(config_extracted.0.core.api_key, config.core.api_key);
+        assert_eq!(config_extracted.0.core.project_id, config.core.project_id);
     }
 }

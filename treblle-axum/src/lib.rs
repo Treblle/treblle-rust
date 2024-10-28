@@ -26,13 +26,13 @@ impl Treblle {
 
     /// Add additional fields to mask
     pub fn add_masked_fields(mut self, fields: Vec<String>) -> Self {
-        self.config.core.add_masked_fields(fields);
+        self.config.core.add_masked_fields(fields).unwrap();
         self
     }
 
     /// Add routes to ignore
     pub fn add_ignored_routes(mut self, routes: Vec<String>) -> Self {
-        self.config.core.add_ignored_routes(routes);
+        self.config.core.add_ignored_routes(routes).unwrap();
         self
     }
 
@@ -47,7 +47,10 @@ pub trait TreblleExt {
     fn treblle(self, treblle: Treblle) -> Self;
 }
 
-impl<S> TreblleExt for Router<S> {
+impl<S> TreblleExt for Router<S>
+where
+    S: Clone + Send + Sync + 'static,
+{
     fn treblle(self, treblle: Treblle) -> Self {
         let layer = treblle.layer();
         self.layer(from_fn_with_state(Arc::new(layer), treblle_middleware))
@@ -65,8 +68,8 @@ mod tests {
             .add_ignored_routes(vec!["/health".to_string()]);
 
         assert_eq!(treblle.config.core.api_key, "api_key");
-        assert_eq!(treblle.config.core.project_id, "test_project");
-        assert!(treblle.config.core.masked_fields.contains(&"password".to_string()));
-        assert!(treblle.config.core.ignored_routes.iter().any(|r| r.as_str() == "/health"));
+        assert_eq!(treblle.config.core.project_id, "project_id");
+        assert!(treblle.config.core.masked_fields.iter().any(|r| r.as_str().contains("password")));
+        assert!(treblle.config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
     }
 }

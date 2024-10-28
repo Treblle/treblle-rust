@@ -1,13 +1,44 @@
 use regex::Regex;
 use serde::{Deserialize, Serialize};
+use std::fmt;
 
 use crate::constants::{
     DEFAULT_IGNORED_ROUTES_REGEX, DEFAULT_SENSITIVE_KEYS_REGEX, DEFAULT_TREBLLE_API_URLS,
 };
 use crate::error::{Result, TreblleError};
 
-/// Configuration for Treblle integrations.
 #[derive(Clone, Debug)]
+pub struct RegexWrapper(pub Regex);
+
+impl Serialize for RegexWrapper {
+    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(self.0.as_str())
+    }
+}
+
+impl<'de> Deserialize<'de> for RegexWrapper {
+    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Regex::new(&s)
+            .map(RegexWrapper)
+            .map_err(serde::de::Error::custom)
+    }
+}
+
+impl fmt::Display for RegexWrapper {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.0.as_str())
+    }
+}
+
+/// Configuration for Treblle integrations.
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct Config {
     /// The Treblle API key.
     pub api_key: String,
@@ -16,39 +47,34 @@ pub struct Config {
     /// The base URLs for the Treblle API.
     pub api_urls: Vec<String>,
     /// Regex patterns for fields to mask
+    #[serde(with = "regex_vec_serde")]
     pub masked_fields: Vec<Regex>,
     /// Regex patterns for routes to ignore
+    #[serde(with = "regex_vec_serde")]
     pub ignored_routes: Vec<Regex>,
 }
 
-// Custom serialization for Config to make it debuggable
-impl Serialize for Config {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+mod regex_vec_serde {
+    use super::*;
+    use serde::{Deserializer, Serializer};
+
+    pub fn serialize<S>(regexes: &Vec<Regex>, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
-        use serde::ser::SerializeStruct;
-        let mut state = serializer.serialize_struct("Config", 5)?;
-        state.serialize_field("api_key", &self.api_key)?;
-        state.serialize_field("project_id", &self.project_id)?;
-        state.serialize_field("api_urls", &self.api_urls)?;
-        state.serialize_field(
-            "masked_fields",
-            &self
-                .masked_fields
-                .iter()
-                .map(|r| r.as_str())
-                .collect::<Vec<&str>>(),
-        )?;
-        state.serialize_field(
-            "ignored_routes",
-            &self
-                .ignored_routes
-                .iter()
-                .map(|r| r.as_str())
-                .collect::<Vec<&str>>(),
-        )?;
-        state.end()
+        let patterns: Vec<&str> = regexes.iter().map(|r| r.as_str()).collect();
+        patterns.serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> std::result::Result<Vec<Regex>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let patterns: Vec<String> = Vec::deserialize(deserializer)?;
+        patterns
+            .into_iter()
+            .map(|p| Regex::new(&p).map_err(serde::de::Error::custom))
+            .collect()
     }
 }
 
@@ -155,37 +181,8 @@ impl Config {
 
     /// Create a Config instance from a JSON string
     pub fn from_json(json: &str) -> Result<Self> {
-        #[derive(Deserialize)]
-        struct ConfigJson {
-            api_key: String,
-            project_id: String,
-            #[serde(default)]
-            api_urls: Vec<String>,
-            #[serde(default)]
-            masked_fields: Vec<String>,
-            #[serde(default)]
-            ignored_routes: Vec<String>,
-        }
-
-        let json_config: ConfigJson = serde_json::from_str(json)
-            .map_err(|e| TreblleError::Config(format!("Invalid JSON configuration: {e}")))?;
-
-        let mut config = Config::new(json_config.api_key, json_config.project_id);
-
-        if !json_config.api_urls.is_empty() {
-            config.set_api_urls(json_config.api_urls);
-        }
-
-        if !json_config.masked_fields.is_empty() {
-            config.set_masked_fields(json_config.masked_fields)?;
-        }
-
-        if !json_config.ignored_routes.is_empty() {
-            config.set_ignored_routes(json_config.ignored_routes)?;
-        }
-
-        config.validate()?;
-        Ok(config)
+        serde_json::from_str(json)
+            .map_err(|e| TreblleError::Config(format!("Invalid JSON configuration: {e}")))
     }
 }
 
@@ -208,6 +205,25 @@ fn default_ignored_routes() -> Vec<Regex> {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    #[test]
+    fn test_config_serialization_deserialization() {
+        let original = Config::new("test_key".to_string(), "test_project".to_string());
+        let serialized = serde_json::to_string(&original).unwrap();
+        let deserialized: Config = serde_json::from_str(&serialized).unwrap();
+
+        assert_eq!(deserialized.api_key, original.api_key);
+        assert_eq!(deserialized.project_id, original.project_id);
+        assert_eq!(deserialized.api_urls, original.api_urls);
+        assert_eq!(
+            deserialized.masked_fields[0].as_str(),
+            original.masked_fields[0].as_str()
+        );
+        assert_eq!(
+            deserialized.ignored_routes[0].as_str(),
+            original.ignored_routes[0].as_str()
+        );
+    }
 
     #[test]
     fn test_default_patterns() {
@@ -312,7 +328,7 @@ mod tests {
             "masked_fields": ["custom_secret.*"],
             "ignored_routes": ["/custom/.*"]
         })
-        .to_string();
+            .to_string();
 
         let config = Config::from_json(&json).unwrap();
         assert_eq!(config.api_key, "test_key");

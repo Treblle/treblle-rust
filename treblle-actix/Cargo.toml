@@ -15,12 +15,16 @@
 
 [dependencies]
     treblle-core = { workspace = true }
-    actix-web    = "4.0"
-    actix-http   = "3.0"
+    actix-web    = {  version = "4.9.0", features = ["macros"] }
+    actix-http   = "3.9"
     futures      = "0.3"
     reqwest      = { version = "0.12.8", features = ["json"] }
-    tokio        = { version = "1.0", features = ["rt", "time"] }
+    tokio        = { workspace = true, features = ["rt", "time"] }
     log          = "0.4"
-    serde = { version = "1.0.210", features = ["derive"] }
+    serde = { workspace = true , features = ["derive"] }
+    serde_json = { workspace = true }
     chrono = "0.4.38"
     futures-util = "0.3.31"
+    bytes = "1.7.2"
+    tracing = { workspace = true }
+    tracing-subscriber = { workspace = true }
