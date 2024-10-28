@@ -22,6 +22,10 @@ pub enum TreblleError {
     #[error("Invalid URL: {0}")]
     InvalidUrl(String),
 
+    /// Represents errors related to invalid URLs.
+    #[error("Invalid Header: {0}")]
+    InvalidHeader(String),
+
     /// Represents errors when a hostname is invalid for TLS.
     #[error("Invalid hostname: {0}")]
     InvalidHostname(String),

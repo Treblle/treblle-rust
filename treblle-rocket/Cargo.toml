@@ -14,7 +14,7 @@
     workspace = true
 
 [dependencies]
-    treblle-core = { path = "../treblle-core" }
+    treblle-core = { workspace = true }
     rocket       = "0.5.0"
     futures      = "0.3"
     reqwest      = { version = "0.12.8", features = ["json"] }

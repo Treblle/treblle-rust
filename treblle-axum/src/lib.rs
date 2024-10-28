@@ -4,13 +4,14 @@ mod config;
 mod extractors;
 mod middleware;
 
-use axum::Router;
-use tower::Layer;
+use axum::{middleware::from_fn_with_state, Router};
+use std::sync::Arc;
 
 pub use config::AxumConfig;
 pub use middleware::{TreblleLayer, treblle_middleware};
 
 /// Treblle service for Axum
+#[derive(Clone)]
 pub struct Treblle {
     config: AxumConfig,
 }
@@ -46,9 +47,10 @@ pub trait TreblleExt {
     fn treblle(self, treblle: Treblle) -> Self;
 }
 
-impl TreblleExt for Router {
+impl<S> TreblleExt for Router<S> {
     fn treblle(self, treblle: Treblle) -> Self {
-        self.layer(treblle.layer())
+        let layer = treblle.layer();
+        self.layer(from_fn_with_state(Arc::new(layer), treblle_middleware))
     }
 }
 
@@ -63,7 +65,7 @@ mod tests {
             .add_ignored_routes(vec!["/health".to_string()]);
 
         assert_eq!(treblle.config.core.api_key, "api_key");
-        assert_eq!(treblle.config.core.project_id, "project_id");
+        assert_eq!(treblle.config.core.project_id, "test_project");
         assert!(treblle.config.core.masked_fields.contains(&"password".to_string()));
         assert!(treblle.config.core.ignored_routes.iter().any(|r| r.as_str() == "/health"));
     }

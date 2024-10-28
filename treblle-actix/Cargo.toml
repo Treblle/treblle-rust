@@ -14,7 +14,7 @@
     workspace = true
 
 [dependencies]
-    treblle-core = { path = "../treblle-core" }
+    treblle-core = { workspace = true }
     actix-web    = "4.0"
     actix-http   = "3.0"
     futures      = "0.3"

@@ -1,0 +1,77 @@
+services:
+  # Mock Treblle API service
+  mock-treblle-api:
+    build:
+      context: ..
+      dockerfile: tests/mock-treblle-api/Dockerfile
+    ports:
+      - "4321:4321"
+    environment:
+      - RUST_LOG=debug
+    networks:
+      - test-net
+      - monitoring
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:4321/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Axum test service
+  axum-test-service:
+    build:
+      context: ..
+      dockerfile: tests/axum-test-service/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - RUST_LOG=debug
+      - TREBLLE_API_KEY=test_key
+      - TREBLLE_PROJECT_ID=test_project
+      - TREBLLE_API_URL=http://mock-treblle-api:4321
+    networks:
+      - test-net
+      - monitoring
+    depends_on:
+      mock-treblle-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # K6 load testing
+  k6:
+    extends:
+      file: docker-compose.monitoring.yml
+      service: k6
+    volumes:
+      - ./k6-scripts:/scripts
+    environment:
+      - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
+      - K6_OUT=prometheus
+    depends_on:
+      axum-test-service:
+        condition: service_healthy
+    command: ["run", "/scripts/load-test.js"]
+
+  # Monitoring stack
+  prometheus:
+    extends:
+      file: docker-compose.monitoring.yml
+      service: prometheus
+
+  grafana:
+    extends:
+      file: docker-compose.monitoring.yml
+      service: grafana
+
+networks:
+  test-net:
+    name: treblle-test-net
+  monitoring:
+    name: treblle-monitoring
+
+volumes:
+  prometheus_data:

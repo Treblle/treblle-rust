@@ -17,7 +17,7 @@
     crate-type = ["cdylib"]
 
 [dependencies]
-    treblle-core = { path = "../treblle-core" }
+    treblle-core = { workspace = true }
     wit-bindgen-rt = { version = "0.33.0", features = [
         "bitflags",
     ], default-features = false }

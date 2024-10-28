@@ -1,0 +1,23 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  - job_name: "prometheus"
+    static_configs:
+      - targets: ["localhost:9090"]
+
+  - job_name: "axum-test-service"
+    static_configs:
+      - targets: ["axum-test-service:8082"]
+    metrics_path: "/metrics"
+
+  - job_name: "mock-treblle-api"
+    static_configs:
+      - targets: ["mock-treblle-api:4321"]
+    metrics_path: "/metrics"
+
+  - job_name: "k6"
+    static_configs:
+      - targets: ["k6:6565"]
+    metrics_path: "/metrics"

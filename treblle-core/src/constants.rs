@@ -11,6 +11,10 @@ pub const DEFAULT_TREBLLE_API_URLS: [&str; 3] = [
 pub const DEFAULT_SENSITIVE_KEYS_REGEX: &str =
     r"(?i)(password|pwd|secret|password_confirmation|cc|card_number|ccv|ssn|credit_score)";
 
+/// Default regex pattern for ignored routes (health checks, metrics, etc.)
+pub const DEFAULT_IGNORED_ROUTES_REGEX: &str =
+    r"(?i)^/(health|healthz|ping|metrics|ready|live|alive|status)/?$";
+
 /// HTTP-related constants
 pub mod http {
     pub const HEADER_CONTENT_TYPE: &str = "Content-Type";

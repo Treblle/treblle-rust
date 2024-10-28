@@ -77,7 +77,7 @@ pub struct ResponseInfo {
 }
 
 /// Represents error information.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]  // Added Clone here
 pub struct ErrorInfo {
     pub source: String,
     #[serde(rename = "type")]
@@ -123,5 +123,23 @@ mod tests {
         let deserialized: TrebllePayload = serde_json::from_str(&serialized).unwrap();
         assert_eq!(payload.api_key, deserialized.api_key);
         assert_eq!(payload.project_id, deserialized.project_id);
+    }
+
+    #[test]
+    fn test_error_info() {
+        let error = ErrorInfo {
+            source: "test".to_string(),
+            error_type: "TestError".to_string(),
+            message: "Test error message".to_string(),
+            file: "test.rs".to_string(),
+            line: 42,
+        };
+
+        let cloned = error.clone();
+        assert_eq!(error.source, cloned.source);
+        assert_eq!(error.error_type, cloned.error_type);
+        assert_eq!(error.message, cloned.message);
+        assert_eq!(error.file, cloned.file);
+        assert_eq!(error.line, cloned.line);
     }
 }
