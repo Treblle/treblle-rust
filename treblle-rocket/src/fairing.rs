@@ -109,7 +109,7 @@ impl Fairing for TreblleFairing {
                     };
 
                     let treblle_client_clone = treblle_client.clone();
-                    rocket::tokio::spawn(async move {
+                    tokio::spawn(async move {
                         if let Err(e) = treblle_client_clone.send_to_treblle(payload).await {
                             error!("Failed to send request payload to Treblle: {:?}", e);
                         }
@@ -153,24 +153,11 @@ impl Fairing for TreblleFairing {
                 },
             };
 
-            rocket::tokio::spawn(async move {
+            tokio::spawn(async move {
                 if let Err(e) = treblle_client.send_to_treblle(payload).await {
                     error!("Failed to send response payload to Treblle: {:?}", e);
                 }
             });
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_fairing_configuration() {
-        let config = RocketConfig::new("test_key".to_string(), "test_project".to_string());
-        let fairing = TreblleFairing::new(config);
-        assert_eq!(fairing.config.core.api_key, "test_key");
-        assert_eq!(fairing.config.core.project_id, "test_project");
     }
 }

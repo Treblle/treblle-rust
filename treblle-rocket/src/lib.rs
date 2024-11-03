@@ -6,6 +6,7 @@
 mod config;
 mod extractors;
 mod fairing;
+mod tests;
 
 pub use config::RocketConfig;
 pub use extractors::TreblleState;
@@ -52,33 +53,5 @@ impl TreblleExt for rocket::Rocket<rocket::Build> {
     fn attach_treblle(self, api_key: String, project_id: String) -> Self {
         self.attach(Treblle::new(api_key, project_id).fairing())
             .manage(TreblleState::default())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rocket::routes;
-
-    #[test]
-    fn test_treblle_builder() {
-        let treblle = Treblle::new("api_key".to_string(), "project_id".to_string())
-            .add_masked_fields(vec!["password".to_string()])
-            .add_ignored_routes(vec!["/health".to_string()]);
-
-        assert_eq!(treblle.config.core.api_key, "api_key");
-        assert_eq!(treblle.config.core.project_id, "project_id");
-        assert!(treblle.config.core.masked_fields.iter().any(|r| r.as_str().contains("password")));
-        assert!(treblle.config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
-    }
-
-    #[test]
-    fn test_rocket_integration() {
-        let _rocket = rocket::build()
-            .attach_treblle("api_key".to_string(), "project_id".to_string())
-            .mount("/", routes![]);
-
-        // Simple build verification is enough
-        assert!(true);
     }
 }

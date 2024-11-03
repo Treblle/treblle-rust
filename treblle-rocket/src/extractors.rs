@@ -78,37 +78,3 @@ impl HttpExtractor for RocketExtractor {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use rocket::{
-        http::{ContentType, Status, Header},
-    };
-
-    #[test]
-    fn test_response_info() {
-        let response = Response::build()
-            .header(ContentType::JSON)
-            .header(Header::new("content-length", "42"))
-            .status(Status::Ok)
-            .finalize();
-
-        let info = RocketExtractor::extract_response_info(&response, Duration::from_secs(1));
-        assert_eq!(info.code, 200);
-        assert_eq!(info.load_time, 1.0);
-        assert_eq!(info.size, 42);
-    }
-
-    #[test]
-    fn test_error_info() {
-        let response = Response::build()
-            .header(ContentType::JSON)
-            .status(Status::NotFound)
-            .finalize();
-
-        let errors = RocketExtractor::extract_error_info(&response).unwrap();
-        assert_eq!(errors.len(), 1);
-        assert_eq!(errors[0].error_type, "HTTP_404");
-    }
-}
