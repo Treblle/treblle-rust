@@ -21,6 +21,14 @@ A --> E[treblle-traefik-wasm]
 - `treblle-rocket`: Integration for the Rocket web framework
 - `treblle-traefik-wasm`: WASM plugin for Traefik
 
+Each middleware must:
+- Intercept HTTP traffic non-intrusively
+- Process only `application/json` content on non-ignored routes
+- Extract and mask sensitive data before sending to Treblle API
+- Send data to Treblle asynchronously (fire-and-forget)
+- Never modify original request/response data
+- Handle errors gracefully without impacting main flow
+
 ## Development Setup
 
 ### Prerequisites

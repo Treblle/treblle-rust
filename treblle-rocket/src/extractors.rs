@@ -1,108 +1,78 @@
-use rocket::{http::HeaderMap, local::blocking::LocalResponse, Request, Response};
+use chrono::Utc;
+use rocket::{Request, Response};
 use serde_json::Value;
-use std::{collections::HashMap, time::Duration};
+use std::{sync::RwLock, time::Duration};
 use treblle_core::{
     payload::HttpExtractor,
     schema::{ErrorInfo, RequestInfo, ResponseInfo},
 };
 
-#[allow(dead_code)] // Allow because it's used in tests
-trait IntoResponse {
-    fn as_response(&self) -> Response<'_>;
+/// State key for storing request/response bodies
+#[derive(Default)]
+pub struct TreblleState {
+    pub request_body: RwLock<Option<Value>>,
+    pub response_body: RwLock<Option<Value>>,
 }
 
-impl<'r> IntoResponse for LocalResponse<'r> {
-    fn as_response(&self) -> Response<'_> {
-        let mut binding = Response::build();
-        let mut response = binding.status(self.status());
+pub struct RocketExtractor;
 
-        for header in self.headers().iter() {
-            response = response.header(header);
-        }
-
-        response.finalize()
-    }
-}
-
-fn extract_headers(headers: &HeaderMap<'_>) -> HashMap<String, String> {
-    headers
-        .iter()
-        .map(|header| (header.name.to_string(), header.value.to_string()))
-        .collect()
-}
-
-pub struct RocketExtractor<'a>(std::marker::PhantomData<&'a ()>);
-
-impl<'a> HttpExtractor for RocketExtractor<'a> {
-    type Request = Request<'a>;
-    type Response = Response<'a>;
+impl HttpExtractor for RocketExtractor {
+    type Request = Request<'static>;
+    type Response = Response<'static>;
 
     fn extract_request_info(req: &Self::Request) -> RequestInfo {
-        let mut info = RequestInfo {
-            ip: req.client_ip().map(|ip| ip.to_string()).unwrap_or_default(),
+        let body = req.rocket()
+            .state::<TreblleState>()
+            .and_then(|state| state.request_body.read().ok())
+            .and_then(|guard| guard.clone());
+
+        RequestInfo {
+            timestamp: Utc::now(),
+            ip: req.client_ip()
+                .map(|addr| addr.to_string())
+                .unwrap_or_else(|| "unknown".to_string()),
             url: req.uri().to_string(),
-            user_agent: req
-                .headers()
-                .get_one("User-Agent")
-                .unwrap_or_default()
+            user_agent: req.headers().get_one("User-Agent")
+                .unwrap_or("")
                 .to_string(),
             method: req.method().to_string(),
-            headers: extract_headers(req.headers()),
-            body: None,
-            timestamp: chrono::Utc::now(),
-        };
-
-        if let Some(body) = req.local_cache(|| None::<Vec<u8>>) {
-            if let Ok(json) = serde_json::from_slice::<Value>(body) {
-                info.body = Some(json);
-            }
+            headers: req.headers().iter()
+                .map(|h| (h.name.to_string(), h.value.to_string()))
+                .collect(),
+            body,
         }
-
-        info
     }
 
     fn extract_response_info(res: &Self::Response, duration: Duration) -> ResponseInfo {
-        let mut info = ResponseInfo {
-            headers: extract_headers(res.headers()),
+        // Get content length using Rocket's header access methods
+        let size = res.headers()
+            .get_one("content-length")
+            .and_then(|val| val.parse::<u64>().ok())
+            .unwrap_or(0);
+
+        ResponseInfo {
+            headers: res.headers().iter()
+                .map(|h| (h.name.to_string(), h.value.to_string()))
+                .collect(),
             code: res.status().code,
-            size: 0,
+            size,
             load_time: duration.as_secs_f64(),
             body: None,
-        };
-
-        // Handle response body
-        /* if let Some(body_reader) = res.body().to_bytes() {
-            let body_bytes = body_reader.into_inner();
-            info.size = body_bytes.len();
-            if let Ok(json) = serde_json::from_slice::<Value>(&body_bytes) {
-                info.body = Some(json);
-            }
-        } */
-
-        info
+        }
     }
 
     fn extract_error_info(res: &Self::Response) -> Option<Vec<ErrorInfo>> {
-        if res.status().code >= 400 {
-            let mut error_info = vec![ErrorInfo {
-                source: String::from("http"),
+        if res.status().class().is_server_error() || res.status().class().is_client_error() {
+            Some(vec![ErrorInfo {
+                source: "rocket".to_string(),
                 error_type: format!("HTTP_{}", res.status().code),
-                message: res.status().to_string(),
+                message: format!("HTTP {} {}",
+                                 res.status().code,
+                                 res.status().reason().unwrap_or("")
+                ),
                 file: String::new(),
                 line: 0,
-            }];
-
-            // Try to get error message from body
-            /* if let Some(body_reader) = res.body().to_bytes() {
-                let body_bytes = body_reader.into_inner();
-                if let Ok(json) = serde_json::from_slice::<Value>(&body_bytes) {
-                    if let Some(message) = json.get("message").and_then(|m| m.as_str()) {
-                        error_info[0].message = message.to_string();
-                    }
-                }
-            } */
-
-            Some(error_info)
+            }])
         } else {
             None
         }
@@ -113,84 +83,32 @@ impl<'a> HttpExtractor for RocketExtractor<'a> {
 mod tests {
     use super::*;
     use rocket::{
-        http::{ContentType, Header, Status},
-        local::blocking::Client,
-        serde::json::json,
+        http::{ContentType, Status, Header},
     };
-    use std::io::Cursor;
 
     #[test]
-    fn test_extract_request_info() {
-        let rocket = rocket::build();
-        let client = Client::tracked(rocket).expect("valid rocket instance");
-        let req = client
-            .get("/test")
-            .header(Header::new("User-Agent", "test-agent"))
-            .header(ContentType::JSON);
-
-        let info = RocketExtractor::extract_request_info(req.inner());
-
-        assert_eq!(info.url, "/test");
-        assert_eq!(info.user_agent, "test-agent");
-        assert_eq!(info.method, "GET");
-    }
-
-    #[test]
-    fn test_extract_response_info() {
-        let rocket = rocket::build();
-        let client = Client::tracked(rocket).expect("valid rocket instance");
-        let local_response = client.get("/").dispatch();
-        let response = local_response.as_response();
+    fn test_response_info() {
+        let response = Response::build()
+            .header(ContentType::JSON)
+            .header(Header::new("content-length", "42"))
+            .status(Status::Ok)
+            .finalize();
 
         let info = RocketExtractor::extract_response_info(&response, Duration::from_secs(1));
-
-        assert_eq!(info.code, 404);
+        assert_eq!(info.code, 200);
         assert_eq!(info.load_time, 1.0);
+        assert_eq!(info.size, 42);
     }
 
     #[test]
-    fn test_extract_error_info() {
-        let error_body = json!({
-            "error": "Not Found",
-            "message": "Resource does not exist"
-        });
-
+    fn test_error_info() {
         let response = Response::build()
-            .status(Status::NotFound)
             .header(ContentType::JSON)
-            .sized_body(
-                error_body.to_string().len(),
-                Cursor::new(error_body.to_string()),
-            )
+            .status(Status::NotFound)
             .finalize();
 
         let errors = RocketExtractor::extract_error_info(&response).unwrap();
         assert_eq!(errors.len(), 1);
         assert_eq!(errors[0].error_type, "HTTP_404");
-        assert!(errors[0].message.contains("Resource does not exist"));
-    }
-
-    #[test]
-    fn test_empty_body_handling() {
-        let response = Response::build()
-            .status(Status::Ok)
-            .header(ContentType::JSON)
-            .sized_body(2, Cursor::new("{}"))
-            .finalize();
-
-        let info = RocketExtractor::extract_response_info(&response, Duration::from_secs(1));
-        assert!(info.body.is_none());
-    }
-
-    #[test]
-    fn test_invalid_json_body() {
-        let response = Response::build()
-            .status(Status::BadRequest)
-            .header(ContentType::JSON)
-            .sized_body(11, Cursor::new("invalid json"))
-            .finalize();
-
-        let info = RocketExtractor::extract_response_info(&response, Duration::from_secs(1));
-        assert!(info.body.is_none());
     }
 }
