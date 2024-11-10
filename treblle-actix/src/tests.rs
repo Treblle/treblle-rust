@@ -1,12 +1,24 @@
 #[cfg(test)]
 pub mod tests {
+    use std::time::Duration;
     use crate::extractors::ActixExtractor;
     use crate::{ActixConfig, Treblle, TreblleConfig, TreblleMiddleware};
-    use actix_http::{HttpMessage, StatusCode};
+    use actix_http::{header, HttpMessage, StatusCode};
     use actix_web::{http::header::ContentType, test, web, App, FromRequest, HttpResponse};
+    use actix_web::dev::ServiceResponse;
     use bytes::Bytes;
     use serde_json::{json, Value};
+    use treblle_core::payload::HttpExtractor;
     use treblle_core::PayloadBuilder;
+
+    #[actix_web::test]
+    async fn test_actix_config() {
+        let config = ActixConfig::new("test_key".to_string(), "test_project".to_string())
+            .buffer_response(true);
+        assert_eq!(config.core.api_key, "test_key");
+        assert_eq!(config.core.project_id, "test_project");
+        assert!(config.buffer_response);
+    }
 
     #[actix_web::test]
     async fn test_treblle_builder() {
@@ -408,5 +420,128 @@ pub mod tests {
         assert_eq!(body["user"]["email"], "test@example.com");
         assert_eq!(body["user"]["password"], "secret123");
         assert_eq!(body["user"]["credit_card"], "4111-1111-1111-1111");
+    }
+
+    #[actix_web::test]
+    async fn test_extract_request_info() {
+        let _app = test::init_service(
+            actix_web::App::new()
+                .default_service(actix_web::web::to(|| async { HttpResponse::Ok().finish() }))
+        ).await;
+
+        let payload = json!({
+            "test": "value",
+            "nested": {
+                "field": "data"
+            }
+        });
+
+        let req = test::TestRequest::default()
+            .insert_header((header::USER_AGENT, "test-agent"))
+            .insert_header((header::CONTENT_TYPE, "application/json"))
+            .uri("/test")
+            .to_srv_request();
+
+        req.request().extensions_mut()
+            .insert(Bytes::from(payload.to_string()));
+
+        let info = ActixExtractor::extract_request_info(&req);
+
+        assert_eq!(info.url, "/test");
+        assert_eq!(info.user_agent, "test-agent");
+        assert!(info.body.is_some());
+        if let Some(body) = info.body {
+            assert_eq!(body["test"], "value");
+            assert_eq!(body["nested"]["field"], "data");
+        }
+    }
+
+    #[actix_web::test]
+    async fn test_extract_response_info() {
+        let json_data = json!({
+            "result": "success",
+            "data": {
+                "id": 1,
+                "value": "test"
+            }
+        });
+
+        let req = test::TestRequest::default().to_http_request();
+        req.extensions_mut().insert(Bytes::from(json_data.to_string()));
+
+        let res = ServiceResponse::new(
+            req,
+            HttpResponse::Ok()
+                .content_type("application/json")
+                .insert_header((header::CONTENT_LENGTH, json_data.to_string().len().to_string()))
+                .body(json_data.to_string())
+        );
+
+        let info = ActixExtractor::extract_response_info(&res, Duration::from_secs(1));
+        assert_eq!(info.code, 200);
+        assert_eq!(info.load_time, 1.0);
+        assert!(info.body.is_some());
+        if let Some(body) = info.body {
+            assert_eq!(body["result"], "success");
+            assert_eq!(body["data"]["id"], 1);
+        }
+    }
+
+    #[actix_web::test]
+    async fn test_extract_error_info() {
+        let error_body = json!({
+            "error": "Not Found",
+            "message": "Resource does not exist",
+            "details": {
+                "id": "missing"
+            }
+        });
+
+        let req = test::TestRequest::default().to_http_request();
+        req.extensions_mut().insert(Bytes::from(error_body.to_string()));
+
+        let res = ServiceResponse::new(
+            req,
+            HttpResponse::NotFound()
+                .content_type("application/json")
+                .body(error_body.to_string())
+        );
+
+        let errors = ActixExtractor::extract_error_info(&res).unwrap();
+        assert_eq!(errors.len(), 1);
+        assert_eq!(errors[0].error_type, "HTTP_404");
+        assert!(errors[0].message.contains("Resource does not exist"));
+    }
+
+    #[actix_web::test]
+    async fn test_empty_body_handling() {
+        let req = test::TestRequest::default().to_http_request();
+        req.extensions_mut().insert(Bytes::new());
+
+        let res = ServiceResponse::new(
+            req,
+            HttpResponse::Ok()
+                .content_type("application/json")
+                .body("{}")
+        );
+
+        let info = ActixExtractor::extract_response_info(&res, Duration::from_secs(1));
+        assert!(info.body.is_none());
+    }
+
+    #[actix_web::test]
+    async fn test_invalid_json_body() {
+        let req = test::TestRequest::default().to_http_request();
+        req.extensions_mut().insert(Bytes::from("invalid json"));
+
+        let res = ServiceResponse::new(
+            req,
+            HttpResponse::BadRequest()
+                .content_type("application/json")
+                .body("invalid json")
+        );
+
+        let info = ActixExtractor::extract_response_info(&res, Duration::from_secs(1));
+        assert!(info.body.is_none());
     }
 }

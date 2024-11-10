@@ -34,17 +34,3 @@ impl Default for ActixConfig {
         }
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_actix_config() {
-        let config = ActixConfig::new("test_key".to_string(), "test_project".to_string())
-            .buffer_response(true);
-        assert_eq!(config.core.api_key, "test_key");
-        assert_eq!(config.core.project_id, "test_project");
-        assert!(config.buffer_response);
-    }
-}
