@@ -15,8 +15,9 @@ use treblle_core::{
     schema::{LanguageInfo, PayloadData, RequestInfo, ResponseInfo, ServerInfo, TrebllePayload},
     TreblleClient,
 };
+use treblle_core::constants::MAX_BODY_SIZE;
 
-const MAX_JSON_SIZE: usize = 10 * 1024 * 1024; // 10MB in bytes
+
 static START_TIME: OnceCell<Instant> = OnceCell::const_new();
 
 /// Treblle fairing for Rocket
@@ -51,11 +52,7 @@ impl Fairing for TreblleFairing {
         let treblle_client = self.treblle_client.clone();
 
         // Only process JSON requests that aren't ignored
-        let should_process = !config
-            .core
-            .ignored_routes
-            .iter()
-            .any(|route| route.is_match(&req.uri().path().to_string()))
+        let should_process = !config.core.should_ignore_route(&req.uri().path().to_string())
             && req
             .content_type()
             .map(|ct| ct.is_json())
@@ -67,7 +64,7 @@ impl Fairing for TreblleFairing {
             }
 
             // Read request data
-            let bytes = data.peek(MAX_JSON_SIZE).await;
+            let bytes = data.peek(MAX_BODY_SIZE).await;
             if !bytes.is_empty() {
                 if let Ok(json_body) = serde_json::from_slice::<Value>(bytes) {
                     // Store the body in state
