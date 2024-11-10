@@ -16,12 +16,12 @@ impl AxumConfig {
     }
 
     pub fn add_masked_fields(&mut self, fields: Vec<String>) -> &mut Self {
-        self.core.add_masked_fields(fields).unwrap();
+        self.core.add_masked_fields(fields);
         self
     }
 
     pub fn add_ignored_routes(&mut self, routes: Vec<String>) -> &mut Self {
-        self.core.add_ignored_routes(routes).unwrap();
+        self.core.add_ignored_routes(routes);
         self
     }
 }

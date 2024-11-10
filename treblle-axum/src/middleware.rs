@@ -10,8 +10,7 @@ use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, error};
 use treblle_core::{payload::PayloadBuilder, TreblleClient};
-
-const BODY_LIMIT: usize = 1024 * 1024 * 10; // 10MB limit
+use treblle_core::constants::MAX_BODY_SIZE;
 
 #[derive(Clone)]
 pub struct TreblleLayer {
@@ -39,7 +38,7 @@ pub async fn treblle_middleware(
     let treblle_client = layer.treblle_client.clone();
     let start_time = Instant::now();
 
-    let should_process = !config.core.should_ignore_route(req.path())
+    let should_process = !config.core.should_ignore_route(req.uri().path())
         && req
         .headers()
         .get("Content-Type")
@@ -50,7 +49,7 @@ pub async fn treblle_middleware(
     // Process request for Treblle
     let req = if should_process {
         let (parts, body) = req.into_parts();
-        let bytes = axum::body::to_bytes(body, BODY_LIMIT)
+        let bytes = axum::body::to_bytes(body, MAX_BODY_SIZE)
             .await
             .unwrap_or_default();
 
@@ -81,7 +80,7 @@ pub async fn treblle_middleware(
         let duration = start_time.elapsed();
 
         let (parts, body) = response.into_parts();
-        let bytes = axum::body::to_bytes(body, BODY_LIMIT)
+        let bytes = axum::body::to_bytes(body, MAX_BODY_SIZE)
             .await
             .unwrap_or_default();
 
@@ -166,8 +165,7 @@ mod tests {
                 "credit_card".to_string(),
                 "cvv".to_string(),
                 "ssn".to_string(),
-            ])
-            .expect("Failed to add masked fields");
+            ]);
 
         let layer = Arc::new(TreblleLayer::new(config));
 
@@ -201,7 +199,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         // Verify the response contains unmasked data (original data preserved)
-        let body_bytes = to_bytes(response.into_body(), BODY_LIMIT).await.unwrap();
+        let body_bytes = to_bytes(response.into_body(), MAX_BODY_SIZE).await.unwrap();
         let body: Value = serde_json::from_slice(&body_bytes).unwrap();
 
         assert_eq!(body["user"]["email"], "test@example.com");
@@ -224,7 +222,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         // Get the response body
-        let body_bytes = to_bytes(response.into_body(), BODY_LIMIT).await.unwrap();
+        let body_bytes = to_bytes(response.into_body(), MAX_BODY_SIZE).await.unwrap();
         assert_eq!(&body_bytes[..], b"Hello, World!");
     }
 
@@ -233,8 +231,7 @@ mod tests {
         let mut config = AxumConfig::new("test_key".to_string(), "test_project".to_string());
         config
             .core
-            .add_ignored_routes(vec!["/ignored.*".to_string()])
-            .unwrap();
+            .add_ignored_routes(vec!["/ignored.*".to_string()]);
 
         let app = Router::new()
             .route("/ignored", post(echo_handler))
@@ -257,7 +254,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         // Verify data is unmodified for ignored routes
-        let body_bytes = to_bytes(response.into_body(), BODY_LIMIT).await.unwrap();
+        let body_bytes = to_bytes(response.into_body(), MAX_BODY_SIZE).await.unwrap();
         let body: Value = serde_json::from_slice(&body_bytes).unwrap();
 
         assert_eq!(body["password"], "secret123");
@@ -271,8 +268,7 @@ mod tests {
         let mut config = AxumConfig::new("test_key".to_string(), "test_project".to_string());
         config
             .core
-            .add_masked_fields(vec!["password".to_string()])
-            .unwrap();
+            .add_masked_fields(vec!["password".to_string()]);
 
         let test_data = json!({
             "username": "test_user",
@@ -372,8 +368,7 @@ mod tests {
                     "api_key".to_string(),
                     "stripe_secret".to_string(),
                     "custom_secret_field".to_string(),
-                ])
-                .expect("Failed to add masked fields");
+                ]);
 
             let treblle_payload =
                 PayloadBuilder::build_request_payload::<AxumExtractor>(&req, &config.core);
@@ -399,7 +394,7 @@ mod tests {
             let response = app.clone().oneshot(response_req).await.unwrap();
             assert_eq!(response.status(), StatusCode::OK);
 
-            let body_bytes = to_bytes(response.into_body(), BODY_LIMIT).await.unwrap();
+            let body_bytes = to_bytes(response.into_body(), MAX_BODY_SIZE).await.unwrap();
             let response_body: Value = serde_json::from_slice(&body_bytes).unwrap();
 
             // Original data should be preserved in the response
@@ -451,8 +446,7 @@ mod tests {
         let mut config = AxumConfig::new("test_key".to_string(), "test_project".to_string());
         config
             .core
-            .add_masked_fields(vec!["number".to_string(), "cvv".to_string()])
-            .expect("Failed to add masked fields");
+            .add_masked_fields(vec!["number".to_string(), "cvv".to_string()]);
 
         let treblle_payload =
             PayloadBuilder::build_request_payload::<AxumExtractor>(&req, &config.core);
@@ -490,7 +484,7 @@ mod tests {
         let response = app.oneshot(response_req).await.unwrap();
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body_bytes = to_bytes(response.into_body(), BODY_LIMIT).await.unwrap();
+        let body_bytes = to_bytes(response.into_body(), MAX_BODY_SIZE).await.unwrap();
         let body: Value = serde_json::from_slice(&body_bytes).unwrap();
 
         // Original data should be preserved in the response

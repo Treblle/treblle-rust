@@ -26,13 +26,13 @@ impl Treblle {
 
     /// Add additional fields to mask
     pub fn add_masked_fields(mut self, fields: Vec<String>) -> Self {
-        self.config.core.add_masked_fields(fields).unwrap();
+        self.config.core.add_masked_fields(fields);
         self
     }
 
     /// Add routes to ignore
     pub fn add_ignored_routes(mut self, routes: Vec<String>) -> Self {
-        self.config.core.add_ignored_routes(routes).unwrap();
+        self.config.core.add_ignored_routes(routes);
         self
     }
 
