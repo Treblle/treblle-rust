@@ -3,6 +3,7 @@
 mod config;
 mod extractors;
 mod middleware;
+mod tests;
 
 use axum::{middleware::from_fn_with_state, Router};
 use std::sync::Arc;
@@ -54,22 +55,5 @@ where
     fn treblle(self, treblle: Treblle) -> Self {
         let layer = treblle.layer();
         self.layer(from_fn_with_state(Arc::new(layer), treblle_middleware))
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_treblle_builder() {
-        let treblle = Treblle::new("api_key".to_string(), "project_id".to_string())
-            .add_masked_fields(vec!["password".to_string()])
-            .add_ignored_routes(vec!["/health".to_string()]);
-
-        assert_eq!(treblle.config.core.api_key, "api_key");
-        assert_eq!(treblle.config.core.project_id, "project_id");
-        assert!(treblle.config.core.masked_fields.iter().any(|r| r.as_str().contains("password")));
-        assert!(treblle.config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
     }
 }
