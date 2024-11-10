@@ -1,20 +1,22 @@
+use std::collections::HashSet;
 use http::header::HeaderMap;
 use regex::Regex;
 use serde_json::{Map, Value};
 
-/// Masks sensitive data in a JSON value based on regex patterns.
+/// Masks sensitive data in a JSON value based on both regex patterns and exact string matches.
 /// For primitive values, returns a clone.
 /// For objects and arrays, traverses them to mask sensitive fields.
-pub fn mask_sensitive_data(data: &Value, patterns: &[Regex]) -> Value {
+pub fn mask_sensitive_data(data: &Value, patterns: &[Regex], exact_matches: &HashSet<String>) -> Value {
     match data {
         Value::Object(map) => {
             let mut new_map = Map::new();
             for (key, value) in map {
-                let should_mask = patterns.iter().any(|re| re.is_match(key));
+                let should_mask = exact_matches.contains(key) ||
+                    patterns.iter().any(|re| re.is_match(key));
                 let new_value = if should_mask {
                     Value::String("*****".to_string())
                 } else {
-                    mask_sensitive_data(value, patterns)
+                    mask_sensitive_data(value, patterns, exact_matches)
                 };
                 new_map.insert(key.clone(), new_value);
             }
@@ -23,11 +25,10 @@ pub fn mask_sensitive_data(data: &Value, patterns: &[Regex]) -> Value {
         Value::Array(arr) => {
             let mut new_arr = Vec::with_capacity(arr.len());
             for value in arr {
-                new_arr.push(mask_sensitive_data(value, patterns));
+                new_arr.push(mask_sensitive_data(value, patterns, exact_matches));
             }
             Value::Array(new_arr)
         }
-        // For primitive values, return a clone
         _ => data.clone(),
     }
 }
@@ -60,8 +61,6 @@ pub fn json_value_to_hashmap(value: Value) -> std::collections::HashMap<String, 
 /// 1. Forwarded (RFC 7239)
 /// 2. X-Forwarded-For
 /// 3. X-Real-IP
-///
-/// Returns the first IP address found, or None if no IP address is found.
 pub fn extract_ip_from_headers(headers: &HeaderMap) -> Option<String> {
     // Try Forwarded header first (RFC 7239)
     if let Some(forwarded) = headers.get(http::header::FORWARDED) {
@@ -110,25 +109,37 @@ mod tests {
 
     #[test]
     fn test_mask_sensitive_data() {
-        let patterns = vec![
-            Regex::new(r"(?i)password").unwrap(),
+        let regex_patterns = vec![
             Regex::new(r"(?i)credit_card").unwrap(),
         ];
+        let exact_matches: HashSet<String> = vec![
+            "password".to_string(),
+            "api_key".to_string(),
+        ].into_iter().collect();
 
         let data = json!({
             "password": "secret123",
             "credit_card": "4111-1111-1111-1111",
+            "api_key": "test_key",
             "user": {
                 "password": "user_secret",
-                "email": "test@example.com"
+                "email": "test@example.com",
+                "credit_card_number": "4111-1111-1111-1111"
             }
         });
 
-        let masked = mask_sensitive_data(&data, &patterns);
+        let masked = mask_sensitive_data(&data, &regex_patterns, &exact_matches);
 
+        // Test exact matches
         assert_eq!(masked["password"], "*****");
-        assert_eq!(masked["credit_card"], "*****");
+        assert_eq!(masked["api_key"], "*****");
         assert_eq!(masked["user"]["password"], "*****");
+
+        // Test regex patterns
+        assert_eq!(masked["credit_card"], "*****");
+        assert_eq!(masked["user"]["credit_card_number"], "*****");
+
+        // Test unmasked fields
         assert_eq!(masked["user"]["email"], "test@example.com");
     }
 
@@ -139,9 +150,10 @@ mod tests {
         map.insert("password".to_string(), "secret".to_string());
 
         let patterns = vec![Regex::new(r"(?i)password").unwrap()];
+        let exact_matches = HashSet::new();
 
         let json_value = hashmap_to_json_value(&map);
-        let masked = mask_sensitive_data(&json_value, &patterns);
+        let masked = mask_sensitive_data(&json_value, &patterns, &exact_matches);
         let result = json_value_to_hashmap(masked);
 
         assert_eq!(result["key1"], "value1");

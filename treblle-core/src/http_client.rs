@@ -1,10 +1,9 @@
-use crate::constants::http::TIMEOUT_SECONDS;
+use crate::constants::http::REQUEST_TIMEOUT;
 use crate::error::{Result as TreblleResult, TreblleError};
 use crate::schema::TrebllePayload;
 use crate::Config;
 use reqwest::Client;
 use std::sync::atomic::{AtomicUsize, Ordering};
-use std::time::Duration;
 
 // First, implement From<reqwest::Error> for TreblleError
 impl From<reqwest::Error> for TreblleError {
@@ -28,7 +27,7 @@ pub struct TreblleClient {
 impl TreblleClient {
     pub fn new(config: Config) -> TreblleResult<Self> {
         let client = Client::builder()
-            .timeout(Duration::from_secs(TIMEOUT_SECONDS))
+            .timeout(REQUEST_TIMEOUT)
             .build()
             .map_err(|e| TreblleError::Http(format!("Failed to create HTTP client: {}", e)))?;
 
@@ -64,6 +63,7 @@ impl TreblleClient {
 
 #[cfg(test)]
 mod tests {
+    use std::time::Duration;
     use super::*;
     use tokio;
     use wiremock::matchers::{header, method};
@@ -120,7 +120,7 @@ mod tests {
         // Set up a mock that delays longer than our timeout
         Mock::given(method("POST"))
             .respond_with(
-                ResponseTemplate::new(200).set_delay(Duration::from_secs(TIMEOUT_SECONDS + 1)),
+                ResponseTemplate::new(200).set_delay(REQUEST_TIMEOUT + Duration::from_secs( 1)),
             )
             .mount(&mock_server)
             .await;

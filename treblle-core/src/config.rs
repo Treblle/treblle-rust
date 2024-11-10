@@ -1,12 +1,15 @@
+use std::collections::HashSet;
 use regex::Regex;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
-use crate::constants::{
-    DEFAULT_IGNORED_ROUTES_REGEX, DEFAULT_SENSITIVE_KEYS_REGEX, DEFAULT_TREBLLE_API_URLS,
+use crate::constants::defaults::{
+    API_URLS, DEFAULT_IGNORED_ROUTES, DEFAULT_IGNORED_ROUTES_REGEX,
+    DEFAULT_MASKED_FIELDS, DEFAULT_MASKED_FIELDS_REGEX,
 };
 use crate::error::{Result, TreblleError};
 
+/// Wrapper for regex to enable serialization and deserialization
 #[derive(Clone, Debug)]
 pub struct RegexWrapper(pub Regex);
 
@@ -37,23 +40,7 @@ impl fmt::Display for RegexWrapper {
     }
 }
 
-/// Configuration for Treblle integrations.
-#[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct Config {
-    /// The Treblle API key.
-    pub api_key: String,
-    /// The Treblle project ID.
-    pub project_id: String,
-    /// The base URLs for the Treblle API.
-    pub api_urls: Vec<String>,
-    /// Regex patterns for fields to mask
-    #[serde(with = "regex_vec_serde")]
-    pub masked_fields: Vec<Regex>,
-    /// Regex patterns for routes to ignore
-    #[serde(with = "regex_vec_serde")]
-    pub ignored_routes: Vec<Regex>,
-}
-
+/// Serialization helper module for regex vectors
 mod regex_vec_serde {
     use super::*;
     use serde::{Deserializer, Serializer};
@@ -78,96 +65,402 @@ mod regex_vec_serde {
     }
 }
 
+/// Configuration for Treblle integrations.
+///
+/// This struct provides configuration options for Treblle middleware integrations,
+/// including API credentials, data masking patterns, and route filtering.
+///
+/// # Examples
+///
+/// Basic configuration:
+/// ```
+/// use treblle_core::Config;
+///
+/// let config = Config::new("api_key".to_string(), "project_id");
+/// ```
+///
+/// Adding custom masking patterns:
+/// ```
+/// # use treblle_core::Config;
+/// let mut config = Config::new("api_key".to_string(), "project_id");
+///
+/// // Add exact field matches
+/// config.add_masked_fields(vec![
+///     "api_token".to_string(),
+///     "secret_key".to_string(),
+/// ]);
+///
+/// // Add regex patterns
+/// config.add_masked_fields_regex(vec![
+///     r"^token_\d+$".to_string(),
+///     r"private_.*".to_string(),
+/// ]).unwrap();
+/// ```
+///
+/// Route ignoring:
+/// ```
+/// # use treblle_core::Config;
+/// let mut config = Config::new("api_key".to_string(), "project_id");
+///
+/// // Ignore specific routes
+/// config.add_ignored_routes(vec![
+///     "/internal/metrics".to_string(),
+///     "/health".to_string(),
+/// ]);
+///
+/// // Ignore routes by pattern
+/// config.add_ignored_routes_regex(vec![
+///     r"/v1/internal/.*".to_string(),
+///     r"/debug/.*".to_string(),
+/// ]).unwrap();
+/// ```
+///
+/// Loading from configuration:
+/// ```
+/// # use treblle_core::Config;
+/// let config_json = r#"{
+///     "api_key": "my_key",
+///     "project_id": "my_project",
+///     "api_urls": ["https://api.example.com"],
+///     "masked_fields": ["api_token"],
+///     "masked_fields_regex": ["secret_.*"],
+///     "ignored_routes": ["/health"],
+///     "ignored_routes_regex": ["/internal/.*"]
+/// }"#;
+///
+/// let config = Config::from_json(config_json).unwrap();
+/// ```
+/// 
+/// # Data Masking
+///
+/// There are two ways to specify fields for masking:
+///
+/// 1. Exact string matches (`masked_fields`):
+///    - Case-sensitive, exact matches
+///    - Good for known field names
+///    - Example: `"password"`, `"credit_card"`
+///
+/// 2. Regex patterns (`masked_fields_regex`):
+///    - Case-insensitive regex matching
+///    - Good for pattern matching
+///    - Example: `"password_\d+"`, `"secret_.*"`
+///
+/// Both approaches can be used simultaneously. A field will be masked if it matches
+/// either an exact string match or a regex pattern.
+///
+/// # Route Ignoring
+///
+/// Similarly, routes can be ignored using two approaches:
+///
+/// 1. Exact string matches (`ignored_routes`):
+///    - Case-sensitive, exact matches
+///    - Good for specific endpoints
+///    - Example: `"/health"`, `"/metrics"`
+///
+/// 2. Regex patterns (`ignored_routes_regex`):
+///    - Case-insensitive regex matching
+///    - Good for pattern matching
+///    - Example: `"/api/v\d+/.*"`, `"/internal/.*"`
+///
+/// Both approaches can be used simultaneously. A route will be ignored if it matches
+/// either an exact string match or a regex pattern.
+///
+/// # Example
+///
+/// ```rust
+/// use treblle_core::Config;
+///
+/// let mut config = Config::new("my_api_key".to_string(), "my_project");
+///
+/// // Add exact string matches
+/// config.add_masked_fields(vec!["api_key".to_string(), "secret_token".to_string()]);
+/// config.add_ignored_routes(vec!["/health".to_string(), "/metrics".to_string()]);
+///
+/// // Add regex patterns
+/// config.add_masked_fields_regex(vec![
+///     r"password_\d+".to_string(),
+///     r"secret_.*".to_string()
+/// ]).unwrap();
+///
+/// config.add_ignored_routes_regex(vec![
+///     r"/api/v\d+/.*".to_string(),
+///     r"/internal/.*".to_string()
+/// ]).unwrap();
+/// ```
+/// # Default Values
+///
+/// ## Masked Fields
+///
+/// Default exact matches:
+/// ```text
+/// password, pwd, secret, password_confirmation, cc,
+/// card_number, ccv, ssn, credit_score
+/// ```
+///
+/// Default regex pattern:
+/// ```text
+/// (?i)(user_\w+_password|api_token_\d+|private_key_\w+)
+/// ```
+///
+/// ## Ignored Routes
+///
+/// Default exact matches:
+/// ```text
+/// /health, /healthz, /ping, /metrics, /ready, /live, /status
+/// ```
+///
+/// Default regex pattern:
+/// ```text
+/// (?i)^/(debug|internal|private|test)/.*$
+/// ```
+///
+/// These defaults are used when no custom patterns are provided. When using `set_*`
+/// methods, only the specific category (regex OR exact matches) is replaced while
+/// preserving the defaults for the other category.
+///
+/// # Examples
+/// ```
+/// use treblle_core::Config;
+///
+/// let mut config = Config::new("api_key".to_string(), "project_id");
+///
+/// // Override exact matches (preserves default regex patterns)
+/// config.set_masked_fields(vec![
+///     "api_token".to_string(),
+///     "secret_key".to_string(),
+/// ]);
+///
+/// // Override regex patterns (preserves default exact matches)
+/// config.set_masked_fields_regex(vec![
+///     r"^token_\d+$".to_string(),
+///     r"private_.*".to_string(),
+/// ]).unwrap();
+///
+/// // Add to existing patterns
+/// config.add_masked_fields(vec!["custom_field".to_string()]);
+/// config.add_masked_fields_regex(vec![r"custom_.*".to_string()]).unwrap();
+/// ```
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Config {
+    /// The Treblle API key (required).
+    pub api_key: String,
+
+    /// The Treblle project ID (optional, defaults to empty string).
+    #[serde(default)]
+    pub project_id: String,
+
+    /// The base URLs for the Treblle API.
+    pub api_urls: Vec<String>,
+
+    /// Regex patterns for fields to mask.
+    /// These patterns are applied case-insensitively to field names in request/response data.
+    #[serde(with = "regex_vec_serde")]
+    pub masked_fields_regex: Vec<Regex>,
+
+    /// Exact string matches for fields to mask.
+    /// These are applied as exact, case-sensitive matches to field names.
+    #[serde(default)]
+    pub masked_fields: HashSet<String>,
+
+    /// Regex patterns for routes to ignore.
+    /// These patterns are applied to request paths to determine if they should be processed.
+    #[serde(with = "regex_vec_serde")]
+    pub ignored_routes_regex: Vec<Regex>,
+
+    /// Exact string matches for routes to ignore.
+    /// These are applied as exact, case-sensitive matches to request paths.
+    #[serde(default)]
+    pub ignored_routes: HashSet<String>,
+}
+
 impl Default for Config {
     fn default() -> Self {
-        Config {
+        Self {
             api_key: String::new(),
             project_id: String::new(),
-            api_urls: default_api_urls(),
-            masked_fields: default_masked_fields(),
-            ignored_routes: default_ignored_routes(),
+            api_urls: API_URLS.iter().map(ToString::to_string).collect(),
+            masked_fields_regex: vec![Regex::new(DEFAULT_MASKED_FIELDS_REGEX)
+                .expect("Invalid default masked fields regex")],
+            masked_fields: DEFAULT_MASKED_FIELDS.iter().map(ToString::to_string).collect(),
+            ignored_routes_regex: vec![Regex::new(DEFAULT_IGNORED_ROUTES_REGEX)
+                .expect("Invalid default ignored routes regex")],
+            ignored_routes: DEFAULT_IGNORED_ROUTES.iter().map(ToString::to_string).collect(),
         }
     }
 }
 
 impl Config {
-    /// Create a new Config instance with default patterns
-    pub fn new(api_key: String, project_id: String) -> Self {
-        Config {
+    /// Creates a new Config instance with the specified API key and project ID.
+    ///
+    /// The project ID is optional and can be empty. All other fields are initialized
+    /// with default values.
+    pub fn new(api_key: String, project_id: impl Into<String>) -> Self {
+        Self {
             api_key,
-            project_id,
-            api_urls: default_api_urls(),
-            masked_fields: default_masked_fields(),
-            ignored_routes: default_ignored_routes(),
+            project_id: project_id.into(),
+            ..Default::default()
         }
     }
 
-    /// Add additional fields to mask (extends default patterns)
-    pub fn add_masked_fields(&mut self, patterns: Vec<String>) -> Result<&mut Self> {
-        let new_patterns: Result<Vec<Regex>> = patterns
+    /// Helper function to compile regex patterns safely
+    fn compile_patterns(patterns: Vec<String>) -> Result<Vec<Regex>> {
+        patterns
             .into_iter()
             .map(|p| {
-                Regex::new(&p)
-                    .map_err(|e| TreblleError::Config(format!("Invalid masked field pattern: {e}")))
+                Regex::new(&p).map_err(|e| {
+                    TreblleError::Config(format!("Invalid regex pattern: {e}"))
+                })
             })
-            .collect();
-        self.masked_fields.extend(new_patterns?);
+            .collect()
+    }
+
+    /// Adds exact string matches for fields to mask, extending the existing set.
+    ///
+    /// These patterns are matched exactly and case-sensitively against field names
+    /// in request and response data. Both exact matches and regex patterns will be
+    /// used for masking.
+    ///
+    /// Note: When no custom patterns are provided, default values are used for both
+    /// exact matches and regex patterns.
+    pub fn add_masked_fields(&mut self, fields: impl IntoIterator<Item = String>) -> &mut Self {
+        self.masked_fields.extend(fields);
+        self
+    }
+
+    /// Adds regex patterns for fields to mask, extending the existing patterns.
+    ///
+    /// These patterns are applied case-insensitively to field names in request
+    /// and response data. Both exact matches and regex patterns will be used for
+    /// masking.
+    ///
+    /// Note: When no custom patterns are provided, default values are used for both
+    /// exact matches and regex patterns.
+    pub fn add_masked_fields_regex(&mut self, patterns: Vec<String>) -> Result<&mut Self> {
+        self.masked_fields_regex.extend(Self::compile_patterns(patterns)?);
         Ok(self)
     }
 
-    /// Set masked fields (overrides default patterns)
-    pub fn set_masked_fields(&mut self, patterns: Vec<String>) -> Result<&mut Self> {
-        let new_patterns: Result<Vec<Regex>> = patterns
-            .into_iter()
-            .map(|p| {
-                Regex::new(&p)
-                    .map_err(|e| TreblleError::Config(format!("Invalid masked field pattern: {e}")))
-            })
-            .collect();
-        self.masked_fields = new_patterns?;
+
+    /// Sets the exact string matches for fields to mask, replacing existing string matches.
+    ///
+    /// Note: This only replaces the exact string matches; regex patterns remain unchanged.
+    /// When no custom patterns are provided for either category, default values are used.
+    ///
+    /// # Default Behavior
+    /// - Only replaces exact string matches, preserving regex patterns
+    /// - If this is the only customization, default regex patterns will still apply
+    pub fn set_masked_fields(&mut self, fields: impl IntoIterator<Item = String>) -> &mut Self {
+        self.masked_fields = fields.into_iter().collect();
+        self
+    }
+
+    /// Sets the regex patterns for fields to mask, replacing existing regex patterns.
+    ///
+    /// Note: This only replaces the regex patterns; exact string matches remain unchanged.
+    /// When no custom patterns are provided for either category, default values are used.
+    ///
+    /// # Default Behavior
+    /// - Only replaces regex patterns, preserving exact string matches
+    /// - If this is the only customization, default exact matches will still apply
+    pub fn set_masked_fields_regex(&mut self, patterns: Vec<String>) -> Result<&mut Self> {
+        self.masked_fields_regex = Self::compile_patterns(patterns)?;
         Ok(self)
     }
 
-    /// Add routes to ignore (extends default patterns)
-    pub fn add_ignored_routes(&mut self, patterns: Vec<String>) -> Result<&mut Self> {
-        let new_patterns: Result<Vec<Regex>> = patterns
-            .into_iter()
-            .map(|p| {
-                Regex::new(&p)
-                    .map_err(|e| TreblleError::Config(format!("Invalid route pattern: {e}")))
-            })
-            .collect();
-        self.ignored_routes.extend(new_patterns?);
+
+    /// Adds exact string matches for routes to ignore, extending the existing set.
+    ///
+    /// These routes will be skipped by the middleware and not sent to Treblle.
+    /// Both exact matches and regex patterns will be used for route ignoring.
+    ///
+    /// Note: When no custom patterns are provided, default values are used for both
+    /// exact matches and regex patterns.
+    pub fn add_ignored_routes(&mut self, routes: impl IntoIterator<Item = String>) -> &mut Self {
+        self.ignored_routes.extend(routes);
+        self
+    }
+
+    /// Adds regex patterns for routes to ignore, extending the existing patterns.
+    ///
+    /// These patterns are applied to request paths to determine if they should be skipped.
+    /// Both exact matches and regex patterns will be used for route ignoring.
+    ///
+    /// Note: When no custom patterns are provided, default values are used for both
+    /// exact matches and regex patterns.
+    pub fn add_ignored_routes_regex(&mut self, patterns: Vec<String>) -> Result<&mut Self> {
+        self.ignored_routes_regex.extend(Self::compile_patterns(patterns)?);
         Ok(self)
     }
 
-    /// Set ignored routes (overrides default patterns)
-    pub fn set_ignored_routes(&mut self, patterns: Vec<String>) -> Result<&mut Self> {
-        let new_patterns: Result<Vec<Regex>> = patterns
-            .into_iter()
-            .map(|p| {
-                Regex::new(&p)
-                    .map_err(|e| TreblleError::Config(format!("Invalid route pattern: {e}")))
-            })
-            .collect();
-        self.ignored_routes = new_patterns?;
+    /// Sets the exact string matches for routes to ignore, replacing existing string matches.
+    ///
+    /// Note: This only replaces the exact string matches; regex patterns remain unchanged.
+    /// When no custom patterns are provided for either category, default values are used.
+    ///
+    /// # Default Behavior
+    /// - Only replaces exact string matches, preserving regex patterns
+    /// - If this is the only customization, default regex patterns will still apply
+    pub fn set_ignored_routes(&mut self, routes: impl IntoIterator<Item = String>) -> &mut Self {
+        self.ignored_routes = routes.into_iter().collect();
+        self
+    }
+
+    /// Sets the regex patterns for routes to ignore, replacing existing regex patterns.
+    ///
+    /// Note: This only replaces the regex patterns; exact string matches remain unchanged.
+    /// When no custom patterns are provided for either category, default values are used.
+    ///
+    /// # Default Behavior
+    /// - Only replaces regex patterns, preserving exact string matches
+    /// - If this is the only customization, default exact matches will still apply
+    pub fn set_ignored_routes_regex(&mut self, patterns: Vec<String>) -> Result<&mut Self> {
+        self.ignored_routes_regex = Self::compile_patterns(patterns)?;
         Ok(self)
     }
 
-    /// Set custom API URLs (overrides default URLs)
+    /// Sets the API URLs to use for Treblle API communication.
+    ///
+    /// This replaces the default URLs with the provided set. At least one URL
+    /// must be provided.
     pub fn set_api_urls(&mut self, urls: Vec<String>) -> &mut Self {
         self.api_urls = urls;
         self
     }
 
-    /// Validate the configuration
+    /// Checks if a field should be masked based on default or custom patterns.
+    ///
+    /// A field will be masked if it matches either:
+    /// - Any regex pattern (default or custom)
+    /// - Any exact string match (default or custom)
+    ///
+    /// If no custom patterns are provided for either category, default values are used.
+    pub fn should_mask_field(&self, field: &str) -> bool {
+        self.masked_fields.contains(field) ||
+            self.masked_fields_regex.iter().any(|re| re.is_match(field))
+    }
+
+    /// Checks if a route should be ignored based on default or custom patterns.
+    ///
+    /// A route will be ignored if it matches either:
+    /// - Any regex pattern (default or custom)
+    /// - Any exact string match (default or custom)
+    ///
+    /// If no custom patterns are provided for either category, default values are used.
+    pub fn should_ignore_route(&self, route: &str) -> bool {
+        self.ignored_routes.contains(route) ||
+            self.ignored_routes_regex.iter().any(|re| re.is_match(route))
+    }
+
+    /// Validates the configuration.
+    ///
+    /// Ensures that:
+    /// - API key is not empty
+    /// - At least one API URL is configured
+    ///
+    /// Note that project_id is optional and can be empty.
     pub fn validate(&self) -> Result<()> {
         if self.api_key.is_empty() {
             return Err(TreblleError::Config("API key is required".to_string()));
-        }
-
-        if self.project_id.is_empty() {
-            return Err(TreblleError::Config("Project ID is required".to_string()));
         }
 
         if self.api_urls.is_empty() {
@@ -179,182 +472,319 @@ impl Config {
         Ok(())
     }
 
-    /// Create a Config instance from a JSON string
+    /// Creates a Config instance from a JSON string.
+    ///
+    /// This is useful for loading configuration from files or environment variables.
     pub fn from_json(json: &str) -> Result<Self> {
         serde_json::from_str(json)
             .map_err(|e| TreblleError::Config(format!("Invalid JSON configuration: {e}")))
     }
 }
-
-fn default_api_urls() -> Vec<String> {
-    DEFAULT_TREBLLE_API_URLS
-        .iter()
-        .map(|&s| s.to_string())
-        .collect()
-}
-
-fn default_masked_fields() -> Vec<Regex> {
-    vec![Regex::new(DEFAULT_SENSITIVE_KEYS_REGEX).expect("Invalid default masked fields regex")]
-}
-
-fn default_ignored_routes() -> Vec<Regex> {
-    vec![Regex::new(DEFAULT_IGNORED_ROUTES_REGEX).expect("Invalid default ignored routes regex")]
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
 
-    #[test]
-    fn test_config_serialization_deserialization() {
-        let original = Config::new("test_key".to_string(), "test_project".to_string());
-        let serialized = serde_json::to_string(&original).unwrap();
-        let deserialized: Config = serde_json::from_str(&serialized).unwrap();
+    mod defaults {
+        use super::*;
 
-        assert_eq!(deserialized.api_key, original.api_key);
-        assert_eq!(deserialized.project_id, original.project_id);
-        assert_eq!(deserialized.api_urls, original.api_urls);
-        assert_eq!(
-            deserialized.masked_fields[0].as_str(),
-            original.masked_fields[0].as_str()
-        );
-        assert_eq!(
-            deserialized.ignored_routes[0].as_str(),
-            original.ignored_routes[0].as_str()
-        );
+        #[test]
+        fn test_default_config() {
+            let config = Config::default();
+
+            // Test exact masked fields
+            assert!(config.masked_fields.contains("password"));
+            assert!(config.masked_fields.contains("credit_score"));
+
+            // Test regex masked fields
+            assert!(config.should_mask_field("user_admin_password"));
+            assert!(config.should_mask_field("api_token_123"));
+
+            // Test exact ignored routes
+            assert!(config.ignored_routes.contains("/health"));
+            assert!(config.ignored_routes.contains("/healthz"));
+
+            // Test regex ignored routes
+            assert!(config.should_ignore_route("/debug/test"));
+            assert!(config.should_ignore_route("/internal/metrics"));
+        }
+
+        #[test]
+        fn test_new_config() {
+            let config = Config::new("test_key".to_string(), "test_project");
+            assert_eq!(config.api_key, "test_key");
+            assert_eq!(config.project_id, "test_project");
+
+            // Empty project_id should be valid
+            let config = Config::new("test_key".to_string(), "");
+            assert_eq!(config.project_id, "");
+        }
+    }
+
+    mod ignored_routes {
+        use super::*;
+
+        #[test]
+        fn test_add_ignored_routes() {
+            let mut config = Config::default();
+            let original_count = config.ignored_routes.len();
+
+            config.add_ignored_routes(vec!["/api/internal".to_string(), "/debug".to_string()]);
+
+            assert!(config.ignored_routes.contains("/api/internal"));
+            assert!(config.ignored_routes.contains("/debug"));
+            assert_eq!(config.ignored_routes.len(), original_count + 2);
+
+            // Should still match default regex patterns
+            assert!(config.should_ignore_route("/health"));
+        }
+
+        #[test]
+        fn test_set_ignored_routes() {
+            let mut config = Config::default();
+
+            config.set_ignored_routes(vec!["/api/internal".to_string(), "/debug".to_string()]);
+
+            // New routes should work
+            assert!(config.ignored_routes.contains("/api/internal"));
+            assert!(config.ignored_routes.contains("/debug"));
+
+            // Default exact matches should be gone
+            assert!(!config.ignored_routes.contains("/health"));
+
+            // Regex patterns should still work for their patterns
+            assert!(config.should_ignore_route("/internal/test"));
+        }
+
+        #[test]
+        fn test_add_ignored_routes_regex() {
+            let mut config = Config::default();
+            let original_count = config.ignored_routes_regex.len();
+
+            config.add_ignored_routes_regex(vec![
+                r"/api/v\d+/.*".to_string(),
+                r"/internal/.*".to_string()
+            ]).unwrap();
+
+            assert!(config.should_ignore_route("/api/v1/users"));
+            assert!(config.should_ignore_route("/internal/debug"));
+            assert_eq!(config.ignored_routes_regex.len(), original_count + 2);
+
+            // Should still match default string patterns
+            assert!(config.ignored_routes.contains("/health"));
+        }
+
+        #[test]
+        fn test_set_ignored_routes_regex() {
+            let mut config = Config::default();
+
+            config.set_ignored_routes_regex(vec![
+                r"/api/v\d+/.*".to_string(),
+                r"/admin/.*".to_string()
+            ]).unwrap();
+
+            // New patterns should work
+            assert!(config.should_ignore_route("/api/v1/users"));
+            assert!(config.should_ignore_route("/admin/dashboard"));
+
+            // Default exact matches should still work
+            assert!(config.ignored_routes.contains("/health"));
+
+            // Old regex patterns should not work
+            assert!(!config.should_ignore_route("/debug/test"));
+        }
     }
 
     #[test]
-    fn test_default_patterns() {
-        let config = Config::new("api_key".to_string(), "project_id".to_string());
+    fn test_overlapping_patterns() {
+        let mut config = Config::default();
 
-        // Test default masked fields
-        assert_eq!(config.masked_fields.len(), 1);
-        let mask_pattern = &config.masked_fields[0];
-        assert!(mask_pattern.is_match("password"));
-        assert!(mask_pattern.is_match("PASSWORD")); // case insensitive
-        assert!(mask_pattern.is_match("credit_score"));
+        // Add patterns that could match the same fields
+        config.add_masked_fields(vec!["password".to_string()]);
+        config.add_masked_fields_regex(vec![r"(?i)password.*".to_string()]).unwrap();
 
-        // Test default ignored routes
-        assert_eq!(config.ignored_routes.len(), 1);
-        let route_pattern = &config.ignored_routes[0];
-        assert!(route_pattern.is_match("/health"));
-        assert!(route_pattern.is_match("/HEALTH")); // case insensitive
-        assert!(route_pattern.is_match("/metrics"));
+        // Both types should work independently
+        assert!(config.should_mask_field("password")); // Exact match
+        assert!(config.should_mask_field("password123")); // Regex match
+
+        // Setting new regex patterns shouldn't affect string matches
+        config.set_masked_fields_regex(vec![r"secret_.*".to_string()]).unwrap();
+
+        assert!(config.should_mask_field("password")); // Original exact match still works
+        assert!(config.should_mask_field("secret_key")); // New regex pattern works
+        assert!(!config.should_mask_field("password123")); // Old regex pattern is gone
+
+        // Same for routes
+        config.add_ignored_routes(vec!["/health".to_string()]);
+        config.add_ignored_routes_regex(vec![r"/health/.*".to_string()]).unwrap();
+
+        assert!(config.should_ignore_route("/health")); // Exact match
+        assert!(config.should_ignore_route("/health/check")); // Regex match
     }
 
-    #[test]
-    fn test_add_patterns() {
-        let mut config = Config::new("api_key".to_string(), "project_id".to_string());
+    mod masked_fields {
+        use super::*;
 
-        // Add masked fields
-        config
-            .add_masked_fields(vec!["custom_secret.*".to_string()])
-            .unwrap();
-        assert_eq!(config.masked_fields.len(), 2);
-        assert!(config
-            .masked_fields
-            .iter()
-            .any(|r| r.is_match("custom_secret_key")));
-        assert!(config.masked_fields.iter().any(|r| r.is_match("password"))); // default still works
+        #[test]
+        fn test_add_masked_fields() {
+            let mut config = Config::default();
+            let original_count = config.masked_fields.len();
 
-        // Add ignored routes
-        config
-            .add_ignored_routes(vec!["/custom/.*".to_string()])
-            .unwrap();
-        assert_eq!(config.ignored_routes.len(), 2);
-        assert!(config
-            .ignored_routes
-            .iter()
-            .any(|r| r.is_match("/custom/route")));
-        assert!(config.ignored_routes.iter().any(|r| r.is_match("/health"))); // default still works
+            config.add_masked_fields(vec!["api_key".to_string(), "token".to_string()]);
+
+            assert!(config.masked_fields.contains("api_key"));
+            assert!(config.masked_fields.contains("token"));
+            assert_eq!(config.masked_fields.len(), original_count + 2);
+
+            // Should still match default regex patterns
+            assert!(config.should_mask_field("password"));
+        }
+
+        #[test]
+        fn test_set_masked_fields() {
+            let mut config = Config::default();
+
+            config.set_masked_fields(vec!["api_key".to_string(), "token".to_string()]);
+
+            assert_eq!(config.masked_fields.len(), 2);
+            assert!(config.masked_fields.contains("api_key"));
+            assert!(config.masked_fields.contains("token"));
+
+            // Default exact matches should be gone
+            assert!(!config.masked_fields.contains("password"));
+            // Custom exact match should work
+            assert!(config.should_mask_field("api_key"));
+            // Regex patterns should still work for their patterns
+            assert!(config.should_mask_field("user_admin_password"));
+        }
+
+        #[test]
+        fn test_add_masked_fields_regex() {
+            let mut config = Config::default();
+            let original_count = config.masked_fields_regex.len();
+
+            config.add_masked_fields_regex(vec![
+                r"secret_\d+".to_string(),
+                r"private_.*".to_string()
+            ]).unwrap();
+
+            assert!(config.should_mask_field("secret_123"));
+            assert!(config.should_mask_field("private_key"));
+            assert_eq!(config.masked_fields_regex.len(), original_count + 2);
+
+            // Should still match default string patterns
+            assert!(config.masked_fields.contains("password"));
+        }
+
+        #[test]
+        fn test_set_masked_fields_regex() {
+            let mut config = Config::default();
+
+            config.set_masked_fields_regex(vec![
+                r"secret_\d+".to_string(),
+                r"private_.*".to_string()
+            ]).unwrap();
+
+            // New patterns should work
+            assert!(config.should_mask_field("secret_123"));
+            assert!(config.should_mask_field("private_key"));
+
+            // Default exact patterns should still work
+            assert!(config.should_mask_field("password"));
+            assert!(config.should_mask_field("credit_score"));
+
+            // Old regex patterns should not work
+            assert!(!config.should_mask_field("user_admin_password"));
+        }
     }
 
-    #[test]
-    fn test_set_patterns() {
-        let mut config = Config::new("api_key".to_string(), "project_id".to_string());
+    mod api_urls {
+        use super::*;
 
-        // Override masked fields
-        config
-            .set_masked_fields(vec!["custom_secret.*".to_string()])
-            .unwrap();
-        assert_eq!(config.masked_fields.len(), 1);
-        assert!(config.masked_fields[0].is_match("custom_secret_key"));
-        assert!(!config.masked_fields[0].is_match("password")); // default no longer works
+        #[test]
+        fn test_set_api_urls() {
+            let mut config = Config::default();
+            let new_urls = vec!["https://api1.example.com".to_string(), "https://api2.example.com".to_string()];
 
-        // Override ignored routes
-        config
-            .set_ignored_routes(vec!["/custom/.*".to_string()])
-            .unwrap();
-        assert_eq!(config.ignored_routes.len(), 1);
-        assert!(config.ignored_routes[0].is_match("/custom/route"));
-        assert!(!config.ignored_routes[0].is_match("/health")); // default no longer works
+            config.set_api_urls(new_urls.clone());
+
+            assert_eq!(config.api_urls, new_urls);
+        }
     }
 
-    #[test]
-    fn test_invalid_patterns() {
-        let mut config = Config::new("api_key".to_string(), "project_id".to_string());
+    mod serialization {
+        use super::*;
 
-        // Invalid masked field pattern
-        assert!(config
-            .add_masked_fields(vec!["[invalid".to_string()])
-            .is_err());
+        #[test]
+        fn test_config_serialization() {
+            let original = Config::new("test_key".to_string(), "test_project");
+            let serialized = serde_json::to_string(&original).unwrap();
+            let deserialized: Config = serde_json::from_str(&serialized).unwrap();
 
-        // Invalid ignored route pattern
-        assert!(config
-            .add_ignored_routes(vec!["[invalid".to_string()])
-            .is_err());
+            assert_eq!(deserialized.api_key, original.api_key);
+            assert_eq!(deserialized.project_id, original.project_id);
+            assert_eq!(deserialized.api_urls, original.api_urls);
+            assert_eq!(deserialized.masked_fields, original.masked_fields);
+            assert_eq!(
+                deserialized.masked_fields_regex[0].as_str(),
+                original.masked_fields_regex[0].as_str()
+            );
+            assert_eq!(
+                deserialized.ignored_routes_regex[0].as_str(),
+                original.ignored_routes_regex[0].as_str()
+            );
+        }
+
+        #[test]
+        fn test_json_conversion() {
+            let json = json!({
+                "api_key": "test_key",
+                "project_id": "test_project",
+                "api_urls": ["https://api.example.com"],
+                "masked_fields": ["custom_secret"],
+                "masked_fields_regex": ["secret_.*"],
+                "ignored_routes": ["/custom"],
+                "ignored_routes_regex": ["/custom/.*"]
+            }).to_string();
+
+            let config = Config::from_json(&json).unwrap();
+            assert_eq!(config.api_key, "test_key");
+            assert_eq!(config.project_id, "test_project");
+            assert_eq!(config.api_urls, vec!["https://api.example.com"]);
+            assert!(config.masked_fields.contains("custom_secret"));
+            assert!(config.should_mask_field("secret_key"));
+            assert!(config.ignored_routes.contains("/custom"));
+            assert!(config.should_ignore_route("/custom/route"));
+        }
+
+        #[test]
+        fn test_invalid_json() {
+            let result = Config::from_json("invalid json");
+            assert!(result.is_err());
+        }
     }
 
-    #[test]
-    fn test_json_serialization() {
-        let config = Config::new("api_key".to_string(), "project_id".to_string());
-        let json = serde_json::to_string(&config).unwrap();
-        let value: serde_json::Value = serde_json::from_str(&json).unwrap();
+    mod validation {
+        use super::*;
 
-        assert_eq!(value["api_key"], "api_key");
-        assert_eq!(value["project_id"], "project_id");
-        assert!(value["masked_fields"].as_array().unwrap().len() > 0);
-        assert!(value["ignored_routes"].as_array().unwrap().len() > 0);
-    }
+        #[test]
+        fn test_validation_requirements() {
+            // Valid config
+            let config = Config::new("api_key".to_string(), "project_id");
+            assert!(config.validate().is_ok());
 
-    #[test]
-    fn test_from_json() {
-        let json = json!({
-            "api_key": "test_key",
-            "project_id": "test_project",
-            "api_urls": ["https://custom.treblle.com"],
-            "masked_fields": ["custom_secret.*"],
-            "ignored_routes": ["/custom/.*"]
-        })
-            .to_string();
+            // Missing API key
+            let config = Config::new("".to_string(), "project_id");
+            assert!(config.validate().is_err());
 
-        let config = Config::from_json(&json).unwrap();
-        assert_eq!(config.api_key, "test_key");
-        assert_eq!(config.project_id, "test_project");
-        assert_eq!(config.api_urls, vec!["https://custom.treblle.com"]);
-        assert!(config.masked_fields[0].is_match("custom_secret_key"));
-        assert!(config.ignored_routes[0].is_match("/custom/route"));
-    }
+            // Empty project ID is valid
+            let config = Config::new("api_key".to_string(), "");
+            assert!(config.validate().is_ok());
 
-    #[test]
-    fn test_validation() {
-        // Valid config
-        let config = Config::new("api_key".to_string(), "project_id".to_string());
-        assert!(config.validate().is_ok());
-
-        // Missing API key
-        let config = Config::new("".to_string(), "project_id".to_string());
-        assert!(config.validate().is_err());
-
-        // Missing project ID
-        let config = Config::new("api_key".to_string(), "".to_string());
-        assert!(config.validate().is_err());
-
-        // Empty API URLs
-        let mut config = Config::new("api_key".to_string(), "project_id".to_string());
-        config.api_urls.clear();
-        assert!(config.validate().is_err());
+            // No API URLs
+            let mut config = Config::new("api_key".to_string(), "project_id");
+            config.api_urls.clear();
+            assert!(config.validate().is_err());
+        }
     }
 }

@@ -39,17 +39,13 @@ pub async fn treblle_middleware(
     let treblle_client = layer.treblle_client.clone();
     let start_time = Instant::now();
 
-    let should_process = !config
-        .core
-        .ignored_routes
-        .iter()
-        .any(|route| route.is_match(req.uri().path()))
+    let should_process = !config.core.should_ignore_route(req.path())
         && req
-            .headers()
-            .get("Content-Type")
-            .and_then(|ct| ct.to_str().ok())
-            .map(|ct| ct.starts_with("application/json"))
-            .unwrap_or(false);
+        .headers()
+        .get("Content-Type")
+        .and_then(|ct| ct.to_str().ok())
+        .map(|ct| ct.starts_with("application/json"))
+        .unwrap_or(false);
 
     // Process request for Treblle
     let req = if should_process {
