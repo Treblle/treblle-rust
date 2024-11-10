@@ -1,19 +1,24 @@
-use std::collections::HashSet;
 use http::header::HeaderMap;
 use regex::Regex;
 use serde_json::{Map, Value};
+use std::collections::HashSet;
 
 /// Masks sensitive data in a JSON value based on both regex patterns and exact string matches.
 /// For primitive values, returns a clone.
 /// For objects and arrays, traverses them to mask sensitive fields.
-pub fn mask_sensitive_data(data: &Value, patterns: &[Regex], exact_matches: &HashSet<String>) -> Value {
+pub fn mask_sensitive_data(
+    data: &Value,
+    patterns: &[Regex],
+    exact_matches: &HashSet<String>,
+) -> Value {
     match data {
         Value::Object(map) => {
             let mut new_map = Map::new();
             for (key, value) in map {
-                let should_mask = exact_matches.contains(key) ||
-                    patterns.iter().any(|re| re.is_match(key));
-                let new_value = if should_mask {
+                let should_mask =
+                    exact_matches.contains(key) || patterns.iter().any(|re| re.is_match(key));
+                let new_value = if should_mask && !value.is_object() {
+                    /* @TODO: Only mask leaf nodes or mask full objects? `&& !value.is_object()` */
                     Value::String("*****".to_string())
                 } else {
                     mask_sensitive_data(value, patterns, exact_matches)
@@ -104,18 +109,93 @@ pub fn extract_ip_from_headers(headers: &HeaderMap) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::Config;
     use http::header::HeaderValue;
     use serde_json::json;
 
+    pub fn test_field_masking(field: &str) -> bool {
+        let config = Config::default();
+        config.should_mask_field(field)
+    }
+
+    pub fn test_route_ignoring(route: &str) -> bool {
+        let config = Config::default();
+        config.should_ignore_route(route)
+    }
+
+    #[test]
+    fn test_masked_fields_patterns() {
+        // Authentication & Security
+        assert!(test_field_masking("password"));
+        assert!(test_field_masking("password_hash"));
+        assert!(test_field_masking("auth_token"));
+        assert!(test_field_masking("api_key"));
+        assert!(test_field_masking("apikey_test"));
+        assert!(test_field_masking("access_token_secret"));
+        assert!(test_field_masking("private_key"));
+
+        // Payment Information
+        assert!(test_field_masking("card_number"));
+        assert!(test_field_masking("cardnumber"));
+        assert!(test_field_masking("cc_num"));
+        assert!(test_field_masking("cvv"));
+        assert!(test_field_masking("cvv2"));
+        assert!(test_field_masking("pin_code"));
+        assert!(test_field_masking("account_number"));
+
+        // Personal Information
+        assert!(test_field_masking("ssn"));
+        assert!(test_field_masking("social_security_number"));
+        assert!(test_field_masking("tax_id"));
+        assert!(test_field_masking("passport_no"));
+        assert!(test_field_masking("driver_license"));
+        assert!(test_field_masking("birth_date"));
+        assert!(test_field_masking("dob"));
+
+        // Should NOT mask
+        assert!(!test_field_masking("username"));
+        assert!(!test_field_masking("first_name"));
+        assert!(!test_field_masking("address"));
+        assert!(!test_field_masking("public_key"));
+    }
+
+    #[test]
+    fn test_ignored_routes_patterns() {
+        // Health & Monitoring
+        assert!(test_route_ignoring("/health"));
+        assert!(test_route_ignoring("/health/check"));
+        assert!(test_route_ignoring("/alive/status"));
+        assert!(test_route_ignoring("/metrics"));
+        assert!(test_route_ignoring("/prometheus/metrics"));
+
+        // Debug & Development
+        assert!(test_route_ignoring("/debug/users"));
+        assert!(test_route_ignoring("/_debug/test"));
+        assert!(test_route_ignoring("/dev/api"));
+
+        // Admin & Internal
+        assert!(test_route_ignoring("/admin/users"));
+        assert!(test_route_ignoring("/internal/metrics"));
+        assert!(test_route_ignoring("/_internal/debug"));
+
+        // Documentation
+        assert!(test_route_ignoring("/swagger/api"));
+        assert!(test_route_ignoring("/openapi/spec"));
+        assert!(test_route_ignoring("/docs/api"));
+
+        // Should NOT ignore
+        assert!(!test_route_ignoring("/api/users"));
+        assert!(!test_route_ignoring("/v1/products"));
+        assert!(!test_route_ignoring("/public/metrics"));
+        assert!(!test_route_ignoring("/healthything")); // Avoid false positives
+    }
+
     #[test]
     fn test_mask_sensitive_data() {
-        let regex_patterns = vec![
-            Regex::new(r"(?i)credit_card").unwrap(),
-        ];
-        let exact_matches: HashSet<String> = vec![
-            "password".to_string(),
-            "api_key".to_string(),
-        ].into_iter().collect();
+        let regex_patterns = vec![Regex::new(r"(?i)credit_card").unwrap()];
+        let exact_matches: HashSet<String> = vec!["password".to_string(), "api_key".to_string()]
+            .into_iter()
+            .collect();
 
         let data = json!({
             "password": "secret123",

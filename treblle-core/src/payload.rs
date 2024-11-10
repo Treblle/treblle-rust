@@ -18,7 +18,10 @@ pub trait HttpExtractor {
 pub struct PayloadBuilder;
 
 impl PayloadBuilder {
-    fn process_errors(response_info: &ResponseInfo, extracted_errors: Option<Vec<ErrorInfo>>) -> Vec<ErrorInfo> {
+    fn process_errors(
+        response_info: &ResponseInfo,
+        extracted_errors: Option<Vec<ErrorInfo>>,
+    ) -> Vec<ErrorInfo> {
         let mut errors = Vec::new();
 
         // Add errors based on status code
@@ -66,7 +69,7 @@ impl PayloadBuilder {
         let masked_headers = mask_sensitive_data(
             &headers_value,
             &config.masked_fields_regex,
-            &config.masked_fields
+            &config.masked_fields,
         );
 
         request_info.headers = json_value_to_hashmap(masked_headers);
@@ -76,7 +79,7 @@ impl PayloadBuilder {
             request_info.body = Some(mask_sensitive_data(
                 body,
                 &config.masked_fields_regex,
-                &config.masked_fields
+                &config.masked_fields,
             ));
         }
 
@@ -110,7 +113,7 @@ impl PayloadBuilder {
         let masked_headers = mask_sensitive_data(
             &headers_value,
             &config.masked_fields_regex,
-            &config.masked_fields
+            &config.masked_fields,
         );
         response_info.headers = json_value_to_hashmap(masked_headers);
 
@@ -119,7 +122,7 @@ impl PayloadBuilder {
             response_info.body = Some(mask_sensitive_data(
                 body,
                 &config.masked_fields_regex,
-                &config.masked_fields
+                &config.masked_fields,
             ));
         }
 
@@ -253,7 +256,9 @@ mod tests {
         assert_eq!(payload.data.response.code, 404);
         assert_eq!(payload.data.errors.len(), 1);
         assert_eq!(payload.data.errors[0].error_type, "HTTP_404");
-        assert!(payload.data.errors[0].message.contains("Resource not found"));
+        assert!(payload.data.errors[0]
+            .message
+            .contains("Resource not found"));
     }
 
     #[test]
@@ -285,13 +290,19 @@ mod tests {
     #[test]
     fn test_build_response_payload_with_sensitive_data() {
         let config = Config::new("test_key".to_string(), "test_project".to_string());
+
         let response = MockResponse {
             status_code: 200,
             body: Some(json!({
                 "user": {
                     "email": "test@example.com",
                     "password": "secret123",
-                    "credit_score": "750"
+                    "api_key": "test_key",
+                    "credit_card": {
+                        "card_number": "4111-1111-1111-1111",
+                        "card_cvv": "123"
+                    },
+                    "ssn": "123-45-6789"
                 }
             })),
             ..Default::default()
@@ -304,8 +315,12 @@ mod tests {
         );
 
         let response_body = payload.data.response.body.unwrap();
+
         assert_eq!(response_body["user"]["password"], "*****");
-        assert_eq!(response_body["user"]["credit_score"], "*****");
+        assert_eq!(response_body["user"]["api_key"], "*****");
+        assert_eq!(response_body["user"]["credit_card"]["card_number"], "*****");
+        assert_eq!(response_body["user"]["credit_card"]["card_cvv"], "*****");
+        assert_eq!(response_body["user"]["ssn"], "*****");
         assert_eq!(response_body["user"]["email"], "test@example.com");
     }
 }

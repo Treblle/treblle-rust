@@ -130,7 +130,7 @@ mod regex_vec_serde {
 ///
 /// let config = Config::from_json(config_json).unwrap();
 /// ```
-/// 
+///
 /// # Data Masking
 ///
 /// There are two ways to specify fields for masking:
@@ -491,22 +491,33 @@ mod tests {
         #[test]
         fn test_default_config() {
             let config = Config::default();
+            assert!(config.api_key.is_empty());
+            assert!(config.project_id.is_empty());
+            assert!(!config.api_urls.is_empty());
 
-            // Test exact masked fields
+            // Test default masked fields (exact matches)
             assert!(config.masked_fields.contains("password"));
-            assert!(config.masked_fields.contains("credit_score"));
+            assert!(config.masked_fields.contains("secret"));
+            assert!(config.masked_fields.contains("api_key"));
+            assert!(config.masked_fields.contains("card_number"));
+            assert!(config.masked_fields.contains("ssn"));
 
-            // Test regex masked fields
-            assert!(config.should_mask_field("user_admin_password"));
-            assert!(config.should_mask_field("api_token_123"));
+            // Test default masked regex
+            assert!(config.should_mask_field("password_hash"));
+            assert!(config.should_mask_field("auth_token"));
+            assert!(config.should_mask_field("access_token_secret"));
+            assert!(config.should_mask_field("card_pin"));
 
-            // Test exact ignored routes
+            // Test default ignored routes (exact matches)
             assert!(config.ignored_routes.contains("/health"));
-            assert!(config.ignored_routes.contains("/healthz"));
+            assert!(config.ignored_routes.contains("/metrics"));
+            assert!(config.ignored_routes.contains("/_debug"));
 
-            // Test regex ignored routes
+            // Test default ignored regex
             assert!(config.should_ignore_route("/debug/test"));
             assert!(config.should_ignore_route("/internal/metrics"));
+            assert!(config.should_ignore_route("/admin/users"));
+            assert!(config.should_ignore_route("/swagger/api"));
         }
 
         #[test]
@@ -527,16 +538,17 @@ mod tests {
         #[test]
         fn test_add_ignored_routes() {
             let mut config = Config::default();
-            let original_count = config.ignored_routes.len();
+            let initial_size = config.ignored_routes.len(); // 12 from our new defaults
 
-            config.add_ignored_routes(vec!["/api/internal".to_string(), "/debug".to_string()]);
+            config.add_ignored_routes(vec!["/custom/route".to_string(), "/test/api".to_string()]);
 
-            assert!(config.ignored_routes.contains("/api/internal"));
-            assert!(config.ignored_routes.contains("/debug"));
-            assert_eq!(config.ignored_routes.len(), original_count + 2);
+            assert!(config.ignored_routes.contains("/custom/route"));
+            assert!(config.ignored_routes.contains("/test/api"));
+            assert_eq!(config.ignored_routes.len(), initial_size + 2);
 
-            // Should still match default regex patterns
+            // Original defaults should still work
             assert!(config.should_ignore_route("/health"));
+            assert!(config.should_ignore_route("/metrics"));
         }
 
         #[test]
@@ -628,16 +640,17 @@ mod tests {
         #[test]
         fn test_add_masked_fields() {
             let mut config = Config::default();
-            let original_count = config.masked_fields.len();
+            let initial_size = config.masked_fields.len(); // 15 from our new defaults
 
-            config.add_masked_fields(vec!["api_key".to_string(), "token".to_string()]);
+            config.add_masked_fields(vec!["custom_key".to_string(), "token_test".to_string()]);
 
-            assert!(config.masked_fields.contains("api_key"));
-            assert!(config.masked_fields.contains("token"));
-            assert_eq!(config.masked_fields.len(), original_count + 2);
+            assert!(config.masked_fields.contains("custom_key"));
+            assert!(config.masked_fields.contains("token_test"));
+            assert_eq!(config.masked_fields.len(), initial_size + 2);
 
-            // Should still match default regex patterns
+            // Original defaults should still work
             assert!(config.should_mask_field("password"));
+            assert!(config.should_mask_field("api_key"));
         }
 
         #[test]
@@ -650,12 +663,10 @@ mod tests {
             assert!(config.masked_fields.contains("api_key"));
             assert!(config.masked_fields.contains("token"));
 
-            // Default exact matches should be gone
+            // Default string patterns should be gone
             assert!(!config.masked_fields.contains("password"));
-            // Custom exact match should work
-            assert!(config.should_mask_field("api_key"));
-            // Regex patterns should still work for their patterns
-            assert!(config.should_mask_field("user_admin_password"));
+            // Regex patterns should still work for other sensitive data
+            assert!(config.should_mask_field("auth_token_secret"));
         }
 
         #[test]
@@ -685,16 +696,14 @@ mod tests {
                 r"private_.*".to_string()
             ]).unwrap();
 
-            // New patterns should work
+            assert_eq!(config.masked_fields_regex.len(), 2);
             assert!(config.should_mask_field("secret_123"));
             assert!(config.should_mask_field("private_key"));
 
-            // Default exact patterns should still work
-            assert!(config.should_mask_field("password"));
-            assert!(config.should_mask_field("credit_score"));
-
-            // Old regex patterns should not work
-            assert!(!config.should_mask_field("user_admin_password"));
+            // Should still match default string patterns
+            assert!(config.masked_fields.contains("password"));
+            // Original regex patterns should be gone
+            assert!(!config.should_mask_field("auth_token"));
         }
     }
 
