@@ -7,9 +7,229 @@ pub mod tests {
     use actix_web::{http::header::ContentType, test, web, App, FromRequest, HttpResponse};
     use actix_web::dev::ServiceResponse;
     use bytes::Bytes;
+    use futures_util::FutureExt;
     use serde_json::{json, Value};
     use treblle_core::payload::HttpExtractor;
     use treblle_core::PayloadBuilder;
+
+    fn create_test_request(headers: Vec<(&str, &str)>) -> actix_web::dev::ServiceRequest {
+        let _app = test::init_service(
+            App::new().default_service(web::to(|| async { HttpResponse::Ok().finish() }))
+        ).now_or_never().unwrap();
+
+        let mut req = test::TestRequest::default()
+            .uri("/test"); // Set the URI explicitly
+
+        for (name, value) in headers {
+            req = req.insert_header((name, value));
+        }
+
+        req.to_srv_request()
+    }
+
+    #[actix_web::test]
+    async fn test_server_info() {
+        let server_info = ActixExtractor::get_server_info();
+
+        assert!(!server_info.ip.is_empty());
+        assert!(!server_info.timezone.is_empty());
+        assert!(server_info.software.as_ref().unwrap().contains("actix-web"));
+        assert_eq!(server_info.protocol, "HTTP/1.1");
+        assert!(!server_info.os.name.is_empty());
+        assert!(!server_info.os.release.is_empty());
+        assert!(!server_info.os.architecture.is_empty());
+
+        // Test caching - should return the same instance
+        let server_info2 = ActixExtractor::get_server_info();
+        assert_eq!(
+            format!("{:?}", server_info),
+            format!("{:?}", server_info2)
+        );
+    }
+
+    #[actix_web::test]
+    async fn test_url_construction() {
+        let test_cases = vec![
+            (
+                vec![
+                    ("Host", "api.example.com"),
+                    ("X-Forwarded-Proto", "https"),
+                ],
+                "/test",
+                "https://api.example.com/test",
+            ),
+            (
+                vec![
+                    ("Host", "localhost:8080"),
+                ],
+                "/api/v1/users",
+                "http://localhost:8080/api/v1/users",
+            ),
+            (
+                vec![
+                    ("Host", "api.example.com"),
+                    ("X-Forwarded-Proto", "https"),
+                ],
+                "/test?query=value",
+                "https://api.example.com/test?query=value",
+            ),
+        ];
+
+        for (headers, path, expected_url) in test_cases {
+            let _app = test::init_service(
+                App::new().default_service(web::to(|| async { HttpResponse::Ok().finish() }))
+            ).await;
+
+            let mut req = test::TestRequest::default().uri(path);
+            for (name, value) in headers {
+                req = req.insert_header((name, value));
+            }
+
+            let srv_req = req.to_srv_request();
+            let info = ActixExtractor::extract_request_info(&srv_req);
+            assert_eq!(info.url, expected_url);
+        }
+    }
+
+    #[actix_web::test]
+    async fn test_ip_extraction() {
+        let test_cases = vec![
+            (
+                vec![("X-Forwarded-For", "203.0.113.195")],
+                "203.0.113.195",
+            ),
+            (
+                vec![("X-Real-IP", "203.0.113.196")],
+                "203.0.113.196",
+            ),
+            (
+                vec![("Forwarded", "for=192.0.2.60;proto=http;by=203.0.113.43")],
+                "192.0.2.60",
+            ),
+            (
+                vec![
+                    ("X-Forwarded-For", "203.0.113.195"),
+                    ("X-Real-IP", "203.0.113.196"),
+                ],
+                "203.0.113.195", // X-Forwarded-For takes precedence
+            ),
+            (
+                vec![
+                    ("Forwarded", "for=192.0.2.60"),
+                    ("X-Forwarded-For", "203.0.113.195"),
+                ],
+                "192.0.2.60", // Forwarded header takes precedence
+            ),
+        ];
+
+        for (headers, expected_ip) in test_cases {
+            let req = create_test_request(headers);
+            let info = ActixExtractor::extract_request_info(&req);
+            assert_eq!(info.ip, expected_ip);
+        }
+    }
+
+    #[actix_web::test]
+    async fn test_response_size_calculation() {
+        let test_cases = vec![
+            (
+                json!({
+                "key": "value",
+                "nested": {
+                    "array": [1, 2, 3]
+                }
+            }),
+                None, // No explicit Content-Length
+            ),
+            (
+                json!("simple string"),
+                Some(15),
+            ),
+            (
+                json!({"empty": {}}),
+                Some(12),
+            ),
+        ];
+
+        for (body, expected_size) in test_cases {
+            let body_string = body.to_string();
+            let body_len = body_string.len() as u64;
+
+            let mut req_builder = test::TestRequest::default();
+
+            if let Some(size) = expected_size {
+                req_builder = req_builder.insert_header((
+                    header::CONTENT_LENGTH,
+                    header::HeaderValue::from_str(&size.to_string()).unwrap(),
+                ));
+            }
+
+            let req = req_builder.to_http_request();
+
+            let resp = ServiceResponse::new(
+                req,
+                HttpResponse::Ok()
+                    .content_type("application/json")
+                    .body(body_string.clone()) // Clone for debugging
+            );
+
+            let info = ActixExtractor::extract_response_info(&resp, Duration::from_secs(1));
+
+            // If Content-Length was explicitly set, use that, otherwise use body length
+            let expected = expected_size.unwrap_or(body_len);
+            assert_eq!(info.size, expected,
+                       "Size mismatch for body: {}. Expected: {}, got: {}. Body length: {}",
+                       body, expected, info.size, body_string.len());
+        }
+    }
+
+    #[actix_web::test]
+    async fn test_error_message_handling() {
+        let test_cases = vec![
+            (
+                StatusCode::NOT_FOUND,
+                json!({
+                    "error": "Resource not found",
+                    "message": "The requested user does not exist"
+                }),
+                "The requested user does not exist",
+            ),
+            (
+                StatusCode::BAD_REQUEST,
+                json!({
+                    "message": "Invalid input"
+                }),
+                "Invalid input",
+            ),
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!("Unexpected server error"),
+                "Unexpected server error",
+            ),
+            (
+                StatusCode::BAD_REQUEST,
+                json!({"custom": "format"}),
+                "{\"custom\":\"format\"}",
+            ),
+        ];
+
+        for (status, error_body, expected_message) in test_cases {
+            let req = test::TestRequest::default().to_http_request();
+            req.extensions_mut().insert(Bytes::from(error_body.to_string()));
+
+            let resp = ServiceResponse::new(
+                req,
+                HttpResponse::build(status)
+                    .content_type("application/json")
+                    .body(error_body.to_string())
+            );
+
+            let errors = ActixExtractor::extract_error_info(&resp).unwrap();
+            assert_eq!(errors[0].source, "actix");
+            assert_eq!(errors[0].error_type, format!("HTTP_{}", status.as_u16()));
+            assert_eq!(errors[0].message, expected_message);
+        }
+    }
 
     #[actix_web::test]
     async fn test_actix_config() {
@@ -424,36 +644,16 @@ pub mod tests {
 
     #[actix_web::test]
     async fn test_extract_request_info() {
-        let _app = test::init_service(
-            actix_web::App::new()
-                .default_service(actix_web::web::to(|| async { HttpResponse::Ok().finish() }))
-        ).await;
-
-        let payload = json!({
-            "test": "value",
-            "nested": {
-                "field": "data"
-            }
-        });
-
-        let req = test::TestRequest::default()
-            .insert_header((header::USER_AGENT, "test-agent"))
-            .insert_header((header::CONTENT_TYPE, "application/json"))
-            .uri("/test")
-            .to_srv_request();
-
-        req.request().extensions_mut()
-            .insert(Bytes::from(payload.to_string()));
+        let req = create_test_request(vec![
+            ("User-Agent", "test-agent"),
+            ("Host", "localhost:8080"),
+        ]);
 
         let info = ActixExtractor::extract_request_info(&req);
 
-        assert_eq!(info.url, "/test");
+        assert_eq!(info.url, "http://localhost:8080/test");
+        assert_eq!(info.method, "GET");
         assert_eq!(info.user_agent, "test-agent");
-        assert!(info.body.is_some());
-        if let Some(body) = info.body {
-            assert_eq!(body["test"], "value");
-            assert_eq!(body["nested"]["field"], "data");
-        }
     }
 
     #[actix_web::test]

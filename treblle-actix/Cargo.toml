@@ -28,3 +28,7 @@
     bytes = "1.7.2"
     tracing = { workspace = true }
     tracing-subscriber = { workspace = true }
+    time = { version = "0.3.36", features = ["local-offset"] }
+    local-ip-address = "0.6.3"
+    os_info = "3.7"
+http = "1.1.0"
