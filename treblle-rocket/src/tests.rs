@@ -1,66 +1,90 @@
 #[cfg(test)]
 pub mod tests {
+    use crate::{RocketConfig, Treblle, TreblleState};
     use rocket::{
+        get,
         http::{ContentType, Status},
         local::blocking::Client,
-        post, get,
+        post, routes,
         serde::json::Json,
-        routes,
     };
     use serde_json::{json, Value};
-    use crate::{RocketConfig, Treblle, TreblleState};
 
-    #[test]
-    fn test_rocket_config() {
-        let mut config = RocketConfig::new("test_key".to_string(), "test_project".to_string());
-        config.add_masked_fields(vec!["password".to_string()]);
-        config.add_ignored_routes(vec!["/health".to_string()]);
+    mod test_utils {
+        use super::*;
 
-        assert_eq!(config.core.api_key, "test_key");
-        assert_eq!(config.core.project_id, "test_project");
-        assert!(config.core.masked_fields.iter().any(|r| r.as_str().contains("password")));
-        assert!(config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
+        // Test route handlers
+        #[post("/echo", format = "json", data = "<input>")]
+        pub fn echo(input: Json<Value>) -> Json<Value> {
+            input
+        }
+
+        #[get("/ping")]
+        pub fn ping() -> &'static str {
+            "pong"
+        }
+
+        #[post("/ignored", format = "json", data = "<input>")]
+        pub fn ignored(input: Json<Value>) -> Json<Value> {
+            input
+        }
+
+        #[get("/error")]
+        pub fn error() -> Status {
+            Status::InternalServerError
+        }
+
+        #[post("/validate", format = "json", data = "<input>")]
+        pub fn validate(input: Json<Value>) -> Result<Json<Value>, Status> {
+            if input
+                .get("valid")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false)
+            {
+                Ok(Json(json!({ "status": "valid" })))
+            } else {
+                Err(Status::BadRequest)
+            }
+        }
+
+        pub fn setup_test_rocket() -> rocket::Rocket<rocket::Build> {
+            rocket::build()
+                .attach(Treblle::new("test_key".to_string(), "test_project".to_string()).fairing())
+                .manage(TreblleState::default())
+        }
     }
 
-    // Test route handlers
-    #[post("/echo", format = "json", data = "<input>")]
-    fn echo(input: Json<Value>) -> Json<Value> {
-        input
-    }
+    mod config_tests {
+        use super::*;
 
-    #[get("/ping")]
-    fn ping() -> &'static str {
-        "pong"
-    }
+        #[test]
+        fn test_rocket_config() {
+            let mut config = RocketConfig::new("test_key".to_string(), "test_project".to_string());
+            config.add_masked_fields(vec!["password".to_string()]);
+            config.add_ignored_routes(vec!["/health".to_string()]);
 
-    #[post("/ignored", format = "json", data = "<input>")]
-    fn ignored(input: Json<Value>) -> Json<Value> {
-        input
-    }
-
-    #[get("/error")]
-    fn error() -> Status {
-        Status::InternalServerError
-    }
-
-    #[post("/validate", format = "json", data = "<input>")]
-    fn validate(input: Json<Value>) -> Result<Json<Value>, Status> {
-        if input.get("valid").and_then(|v| v.as_bool()).unwrap_or(false) {
-            Ok(Json(json!({ "status": "valid" })))
-        } else {
-            Err(Status::BadRequest)
+            assert_eq!(config.core.api_key, "test_key");
+            assert_eq!(config.core.project_id, "test_project");
+            assert!(config
+                .core
+                .masked_fields
+                .iter()
+                .any(|r| r.as_str().contains("password")));
+            assert!(config
+                .core
+                .ignored_routes
+                .iter()
+                .any(|r| r.as_str().contains("/health")));
         }
     }
 
     mod request_handling {
         use super::*;
+        use test_utils::{echo, ping};
 
         #[test]
         fn test_processes_json_requests() {
-            let rocket = rocket::build()
-                .attach(Treblle::new("test_key".to_string(), "test_project".to_string()).fairing())
-                .manage(TreblleState::default())
-                .mount("/", routes![echo]);
+            let rocket = test_utils::setup_test_rocket().mount("/", routes![echo]);
 
             let client = Client::tracked(rocket).expect("valid rocket instance");
 
@@ -78,18 +102,14 @@ pub mod tests {
                 .dispatch();
 
             assert_eq!(response.status(), Status::Ok);
-            let response_body: Value = serde_json::from_str(
-                &response.into_string().unwrap()
-            ).unwrap();
+            let response_body: Value =
+                serde_json::from_str(&response.into_string().unwrap()).unwrap();
             assert_eq!(response_body, test_data);
         }
 
         #[test]
         fn test_ignores_non_json_requests() {
-            let rocket = rocket::build()
-                .attach(Treblle::new("test_key".to_string(), "test_project".to_string()).fairing())
-                .manage(TreblleState::default())
-                .mount("/", routes![ping]);
+            let rocket = test_utils::setup_test_rocket().mount("/", routes![ping]);
 
             let client = Client::tracked(rocket).expect("valid rocket instance");
             let response = client.get("/ping").dispatch();
@@ -101,6 +121,7 @@ pub mod tests {
 
     mod data_masking {
         use super::*;
+        use test_utils::echo;
 
         #[test]
         fn test_masks_sensitive_data() {
@@ -108,7 +129,7 @@ pub mod tests {
                 .attach(
                     Treblle::new("test_key".to_string(), "test_project".to_string())
                         .add_masked_fields(vec!["password".to_string(), "secret".to_string()])
-                        .fairing()
+                        .fairing(),
                 )
                 .manage(TreblleState::default())
                 .mount("/", routes![echo]);
@@ -132,9 +153,8 @@ pub mod tests {
 
             assert_eq!(response.status(), Status::Ok);
             // Original data should not be masked
-            let response_body: Value = serde_json::from_str(
-                &response.into_string().unwrap()
-            ).unwrap();
+            let response_body: Value =
+                serde_json::from_str(&response.into_string().unwrap()).unwrap();
             assert_eq!(response_body["password"], "secret123");
             assert_eq!(response_body["data"]["secret"], "hidden");
         }
@@ -142,6 +162,7 @@ pub mod tests {
 
     mod route_ignoring {
         use super::*;
+        use test_utils::{echo, ignored};
 
         #[test]
         fn test_ignores_specified_routes() {
@@ -149,7 +170,7 @@ pub mod tests {
                 .attach(
                     Treblle::new("test_key".to_string(), "test_project".to_string())
                         .add_ignored_routes(vec!["/ignored.*".to_string()])
-                        .fairing()
+                        .fairing(),
                 )
                 .manage(TreblleState::default())
                 .mount("/", routes![echo, ignored]);
@@ -182,13 +203,11 @@ pub mod tests {
 
     mod error_handling {
         use super::*;
+        use test_utils::{error, validate};
 
         #[test]
         fn test_handles_error_responses() {
-            let rocket = rocket::build()
-                .attach(Treblle::new("test_key".to_string(), "test_project".to_string()).fairing())
-                .manage(TreblleState::default())
-                .mount("/", routes![error]);
+            let rocket = test_utils::setup_test_rocket().mount("/", routes![error]);
 
             let client = Client::tracked(rocket).expect("valid rocket instance");
             let response = client.get("/error").dispatch();
@@ -198,10 +217,7 @@ pub mod tests {
 
         #[test]
         fn test_handles_validation_errors() {
-            let rocket = rocket::build()
-                .attach(Treblle::new("test_key".to_string(), "test_project".to_string()).fairing())
-                .manage(TreblleState::default())
-                .mount("/", routes![validate]);
+            let rocket = test_utils::setup_test_rocket().mount("/", routes![validate]);
 
             let client = Client::tracked(rocket).expect("valid rocket instance");
 
@@ -222,9 +238,8 @@ pub mod tests {
                 .dispatch();
 
             assert_eq!(response.status(), Status::Ok);
-            let response_body: Value = serde_json::from_str(
-                &response.into_string().unwrap()
-            ).unwrap();
+            let response_body: Value =
+                serde_json::from_str(&response.into_string().unwrap()).unwrap();
             assert_eq!(response_body["status"], "valid");
         }
     }
