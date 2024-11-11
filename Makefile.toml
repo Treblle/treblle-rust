@@ -1,118 +1,140 @@
 [config]
-    default_to_workspace = false
+default_to_workspace = false
 
 # Format task
 [tasks.format]
-    install_crate = "rustfmt"
-    command       = "cargo"
-    args          = ["fmt", "--all", "--", "--emit=files"]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt", "--all", "--", "--emit=files"]
 
 # Lint task
 [tasks.lint]
-    install_crate = "clippy"
-    command       = "cargo"
-    args          = ["clippy", "--all-targets", "--all-features"]
+install_crate = "clippy"
+command = "cargo"
+args = ["clippy", "--all-targets", "--all-features"]
 
 # Combined format and lint
 [tasks.fmtclip]
-    dependencies = ["format", "lint"]
+dependencies = ["format", "lint"]
 
 # Run nextest on treblle crates
 [tasks.test-core]
-    command = "cargo"
-    args    = ["nextest", "run", "-p", "treblle-core"]
+command = "cargo"
+args = ["nextest", "run", "-p", "treblle-core"]
 
 [tasks.test-axum]
-    command = "cargo"
-    args    = ["nextest", "run", "-p", "treblle-axum"]
+command = "cargo"
+args = ["nextest", "run", "-p", "treblle-axum"]
 
 [tasks.test-actix]
-    command = "cargo"
-    args    = ["nextest", "run", "-p", "treblle-actix"]
+command = "cargo"
+args = ["nextest", "run", "-p", "treblle-actix"]
 
 [tasks.test-rocket]
-    command = "cargo"
-    args    = ["nextest", "run", "-p", "treblle-rocket"]
+command = "cargo"
+args = ["nextest", "run", "-p", "treblle-rocket"]
 
 [tasks.test-traefik]
-    command = "cargo"
-    args    = ["nextest", "run", "-p", "treblle-traefik-wasm"]
+command = "cargo"
+args = ["nextest", "run", "-p", "treblle-traefik-wasm"]
+dependencies = ["wasm-test-unit"]
 
 # Run all tests
 [tasks.test-all]
-    dependencies = [
-        "test-core",
-        "test-axum",
-        "test-actix",
-        "test-rocket",
-        "test-traefik",
-    ]
+dependencies = [
+    "test-core",
+    "test-axum",
+    "test-actix",
+    "test-rocket",
+    "test-traefik",
+]
 
 # List tests for each crate
 [tasks.list-core]
-    command = "cargo"
-    args    = ["nextest", "list", "-p", "treblle-core"]
+command = "cargo"
+args = ["nextest", "list", "-p", "treblle-core"]
 
 [tasks.list-axum]
-    command = "cargo"
-    args    = ["nextest", "list", "-p", "treblle-axum"]
+command = "cargo"
+args = ["nextest", "list", "-p", "treblle-axum"]
 
 [tasks.list-actix]
-    command = "cargo"
-    args    = ["nextest", "list", "-p", "treblle-actix"]
+command = "cargo"
+args = ["nextest", "list", "-p", "treblle-actix"]
 
 [tasks.list-rocket]
-    command = "cargo"
-    args    = ["nextest", "list", "-p", "treblle-rocket"]
+command = "cargo"
+args = ["nextest", "list", "-p", "treblle-rocket"]
 
 [tasks.list-traefik]
-    command = "cargo"
-    args    = ["nextest", "list", "-p", "treblle-traefik-wasm"]
+command = "cargo"
+args = ["nextest", "list", "-p", "treblle-traefik-wasm"]
 
 # List all tests
 [tasks.list-all]
-    dependencies = [
-        "list-core",
-        "list-axum",
-        "list-actix",
-        "list-rocket",
-        "list-traefik",
-    ]
+dependencies = [
+    "list-core",
+    "list-axum",
+    "list-actix",
+    "list-rocket",
+    "list-traefik",
+]
 
 # Audit tasks for each crate
 [tasks.audit-core]
-    command = "cargo"
-    args    = ["audit", "-p", "treblle-core"]
+command = "cargo"
+args = ["audit", "-p", "treblle-core"]
 
 [tasks.audit-traefik]
-    command = "cargo"
-    args    = ["audit", "-p", "treblle-traefik-wasm"]
+command = "cargo"
+args = ["audit", "-p", "treblle-traefik-wasm"]
 
 [tasks.audit-actix]
-    command = "cargo"
-    args    = ["audit", "-p", "treblle-actix"]
+command = "cargo"
+args = ["audit", "-p", "treblle-actix"]
 
 [tasks.audit-axum]
-    command = "cargo"
-    args    = ["audit", "-p", "treblle-axum"]
+command = "cargo"
+args = ["audit", "-p", "treblle-axum"]
 
 [tasks.audit-rocket]
-    command = "cargo"
-    args    = ["audit", "-p", "treblle-rocket"]
+command = "cargo"
+args = ["audit", "-p", "treblle-rocket"]
 
 # Audit all crates
 [tasks.audit-all]
-    dependencies = [
-        "audit-core",
-        "audit-traefik",
-        "audit-actix",
-        "audit-axum",
-        "audit-rocket",
-    ]
+dependencies = [
+    "audit-core",
+    "audit-traefik",
+    "audit-actix",
+    "audit-axum",
+    "audit-rocket",
+]
+
+[env]
+WASM_TARGET = "wasm32-wasip1"
+
+# WASM-specific tasks
+[tasks.wasm-test-unit]
+command = "cargo"
+args = ["nextest", "run", "-p", "treblle-traefik-wasm", "--no-default-features", "--features=test-utils"]
+
+[tasks.wasm-test-wasm]
+command = "cargo"
+args = ["test", "-p", "treblle-traefik-wasm", "--target", "${WASM_TARGET}", "--features=wasm"]
+
+[tasks.wasm-build]
+command = "cargo"
+args = ["build", "--target", "${WASM_TARGET}", "--features=wasm"]
+
+[tasks.wasm-build-release]
+command = "cargo"
+args = ["build", "--target", "${WASM_TARGET}", "--features=wasm", "--release"]
+
 
 # Install required tools
 [tasks.install-tools]
-    script = '''
+script = '''
 cargo install cargo-nextest
 cargo install cargo-audit
 '''

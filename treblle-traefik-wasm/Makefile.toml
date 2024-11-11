@@ -1,0 +1,39 @@
+[env]
+CARGO_MAKE_EXTEND_WORKSPACE_MAKEFILE = true
+
+[config]
+skip_core_tasks = true
+
+# WASM-specific tasks that extend/override workspace tasks
+[tasks.test]
+dependencies = ["test-unit", "test-wasm"]
+
+[tasks.test-unit]
+extend = "wasm-test-unit"
+description = "Run unit tests for WASM module"
+
+[tasks.test-wasm]
+extend = "wasm-test-wasm"
+description = "Run WASM-specific tests"
+
+[tasks.build]
+extend = "wasm-build"
+description = "Build WASM module"
+
+[tasks.build-release]
+extend = "wasm-build-release"
+description = "Build release version of WASM module"
+
+[tasks.check]
+dependencies = ["check-wasm", "check-test"]
+
+[tasks.check-wasm]
+command = "cargo"
+args = ["check", "--target", "${WASM_TARGET}", "--features=wasm"]
+
+[tasks.check-test]
+command = "cargo"
+args = ["check", "--no-default-features", "--features=test-utils"]
+
+[tasks.dev]
+dependencies = ["check", "test-unit"]
