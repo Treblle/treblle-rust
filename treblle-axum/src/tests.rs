@@ -1,21 +1,21 @@
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
-    use std::time::Duration;
+    use crate::extractors::AxumExtractor;
+    use crate::{AxumConfig, Treblle, TreblleLayer};
     use axum::body::{to_bytes, Body};
     use axum::response::Response;
-    use axum::{Json, Router};
     use axum::routing::{get, post};
+    use axum::{Json, Router};
     use http::header::CONTENT_TYPE;
     use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
-    use serde_json::{json, Value};
-    use treblle_core::payload::HttpExtractor;
-    use crate::{AxumConfig, Treblle, TreblleLayer};
-    use crate::extractors::AxumExtractor;
     use hyper::body::Bytes;
+    use serde_json::{json, Value};
+    use std::sync::Arc;
+    use std::time::Duration;
     use tower::{ServiceBuilder, ServiceExt};
     use tower_http::timeout::TimeoutLayer;
     use treblle_core::constants::MAX_BODY_SIZE;
+    use treblle_core::extractors::TreblleExtractor;
     use treblle_core::PayloadBuilder;
 
     fn create_test_request(headers: Vec<(&str, &str)>) -> http::Request<Body> {
@@ -58,8 +58,18 @@ mod tests {
 
         assert_eq!(treblle.config.core.api_key, "api_key");
         assert_eq!(treblle.config.core.project_id, "project_id");
-        assert!(treblle.config.core.masked_fields.iter().any(|r| r.as_str().contains("password")));
-        assert!(treblle.config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
+        assert!(treblle
+            .config
+            .core
+            .masked_fields
+            .iter()
+            .any(|r| r.as_str().contains("password")));
+        assert!(treblle
+            .config
+            .core
+            .ignored_routes
+            .iter()
+            .any(|r| r.as_str().contains("/health")));
     }
 
     #[test]
@@ -70,21 +80,23 @@ mod tests {
 
         assert_eq!(config.core.api_key, "test_key");
         assert_eq!(config.core.project_id, "test_project");
-        assert!(config.core.masked_fields.iter().any(|r| r.as_str().contains("password")));
-        assert!(config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
+        assert!(config
+            .core
+            .masked_fields
+            .iter()
+            .any(|r| r.as_str().contains("password")));
+        assert!(config
+            .core
+            .ignored_routes
+            .iter()
+            .any(|r| r.as_str().contains("/health")));
     }
 
     #[test]
     fn test_ip_extraction() {
         let test_cases = vec![
-            (
-                vec![("X-Forwarded-For", "203.0.113.195")],
-                "203.0.113.195",
-            ),
-            (
-                vec![("X-Real-IP", "203.0.113.196")],
-                "203.0.113.196",
-            ),
+            (vec![("X-Forwarded-For", "203.0.113.195")], "203.0.113.195"),
+            (vec![("X-Real-IP", "203.0.113.196")], "203.0.113.196"),
             (
                 vec![("Forwarded", "for=192.0.2.60;proto=http;by=203.0.113.43")],
                 "192.0.2.60",
@@ -207,16 +219,16 @@ mod tests {
             (
                 StatusCode::NOT_FOUND,
                 json!({
-                "error": "Resource not found",
-                "message": "The requested user does not exist"
-            }),
+                    "error": "Resource not found",
+                    "message": "The requested user does not exist"
+                }),
                 "The requested user does not exist",
             ),
             (
                 StatusCode::BAD_REQUEST,
                 json!({
-                "message": "Invalid input"
-            }),
+                    "message": "Invalid input"
+                }),
                 "Invalid input",
             ),
             (
@@ -232,14 +244,17 @@ mod tests {
                 .body(Body::empty())
                 .unwrap();
 
-            res.extensions_mut().insert(Bytes::from(error_body.to_string()));
+            res.extensions_mut()
+                .insert(Bytes::from(error_body.to_string()));
 
             let errors = AxumExtractor::extract_error_info(&res).unwrap();
             assert_eq!(errors[0].source, "axum");
             assert_eq!(errors[0].error_type, format!("HTTP_{}", status.as_u16()));
-            assert_eq!(errors[0].message, expected_message,
-                       "Failed for status code {} with body {:?}",
-                       status, error_body);
+            assert_eq!(
+                errors[0].message, expected_message,
+                "Failed for status code {} with body {:?}",
+                status, error_body
+            );
         }
     }
 
@@ -325,14 +340,12 @@ mod tests {
 
     fn setup_test_app() -> Router {
         let mut config = AxumConfig::new("test_key".to_string(), "test_project".to_string());
-        config
-            .core
-            .add_masked_fields(vec![
-                "password".to_string(),
-                "credit_card".to_string(),
-                "cvv".to_string(),
-                "ssn".to_string(),
-            ]);
+        config.core.add_masked_fields(vec![
+            "password".to_string(),
+            "credit_card".to_string(),
+            "cvv".to_string(),
+            "ssn".to_string(),
+        ]);
 
         let layer = Arc::new(TreblleLayer::new(config));
 
@@ -433,9 +446,7 @@ mod tests {
         use axum::body::Bytes;
 
         let mut config = AxumConfig::new("test_key".to_string(), "test_project".to_string());
-        config
-            .core
-            .add_masked_fields(vec!["password".to_string()]);
+        config.core.add_masked_fields(vec!["password".to_string()]);
 
         let test_data = json!({
             "username": "test_user",
@@ -524,18 +535,16 @@ mod tests {
 
             // Create config with all fields that should be masked
             let mut config = AxumConfig::new("test_key".to_string(), "test_project".to_string());
-            config
-                .core
-                .add_masked_fields(vec![
-                    "password".to_string(),
-                    "Password".to_string(),
-                    "user_password".to_string(),
-                    "credit_card".to_string(),
-                    "ssn".to_string(),
-                    "api_key".to_string(),
-                    "stripe_secret".to_string(),
-                    "custom_secret_field".to_string(),
-                ]);
+            config.core.add_masked_fields(vec![
+                "password".to_string(),
+                "Password".to_string(),
+                "user_password".to_string(),
+                "credit_card".to_string(),
+                "ssn".to_string(),
+                "api_key".to_string(),
+                "stripe_secret".to_string(),
+                "custom_secret_field".to_string(),
+            ]);
 
             let treblle_payload =
                 PayloadBuilder::build_request_payload::<AxumExtractor>(&req, &config.core);

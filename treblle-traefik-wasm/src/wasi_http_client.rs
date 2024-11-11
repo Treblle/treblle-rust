@@ -8,6 +8,7 @@ use std::sync::Arc;
 use lazy_static::lazy_static;
 use rustls::{ClientConfig, ClientConnection, RootCertStore, ServerName, StreamOwned};
 use url::Url;
+
 use wasmedge_wasi_socket::TcpStream;
 
 use treblle_core::error::{Result, TreblleError};

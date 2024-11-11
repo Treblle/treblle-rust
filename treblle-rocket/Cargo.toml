@@ -16,15 +16,16 @@
 [dependencies]
     treblle-core = { workspace = true }
     rocket       = { version = "0.5", features = ["json"] }
-    futures      = "0.3"
-    reqwest      = { version = "0.12.9", features = ["json"] }
-    tokio        = { workspace = true, features = ["rt", "time"] }
-    tracing      = { workspace = true }
-    serde        = { workspace = true }
-    serde_json   = { workspace = true }
-    bytes        = "1.7.2"
-    chrono       = "0.4.38"
+
+    chrono           = { workspace = true }
+    http             = "1.1.0"
+    local-ip-address = { workspace = true }
+    os_info          = { workspace = true }
+    serde            = { workspace = true }
+    serde_json       = { workspace = true }
+    time             = { workspace = true, features = ["local-offset"] }
+    tokio            = { workspace = true, features = ["rt", "time"] }
+    tracing          = { workspace = true }
+
+[dev-dependencies]
     http = "1.1.0"
-    time = { version = "0.3.36", features = ["local-offset"] }
-    local-ip-address = "0.6.3"
-    os_info = "3.7"

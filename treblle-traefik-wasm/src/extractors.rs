@@ -1,6 +1,6 @@
 //! WASM extractor implementation for Treblle middleware.
 //!
-//! This module provides the implementation of the HttpExtractor trait for
+//! This module provides the implementation of the TreblleExtractor trait for
 //! extracting request/response information from WASM host functions.
 
 use crate::{
@@ -11,12 +11,16 @@ use chrono::Utc;
 use http::{HeaderMap, HeaderValue};
 use serde_json::Value;
 use std::collections::HashMap;
+use std::sync::OnceLock;
 use std::time::Duration;
+use treblle_core::{extractors::TreblleExtractor, schema::OsInfo};
 use treblle_core::{
-    payload::HttpExtractor,
     schema::{ErrorInfo, RequestInfo, ResponseInfo},
     utils::extract_ip_from_headers,
+    ServerInfo,
 };
+
+static SERVER_INFO: OnceLock<ServerInfo> = OnceLock::new();
 
 /// WASM extractor for Treblle middleware
 pub struct WasmExtractor;
@@ -36,42 +40,41 @@ impl WasmExtractor {
     }
 }
 
-impl HttpExtractor for WasmExtractor {
+impl TreblleExtractor for WasmExtractor {
     type Request = ();
     type Response = ();
 
     fn extract_request_info(_req: &Self::Request) -> RequestInfo {
         // Collect request headers into a HashMap
-        let headers: HashMap<String, String> = host_functions::host_get_header_names(REQUEST_KIND)
-            .unwrap_or_default()
-            .split(',')
-            .filter_map(|name| {
-                if name.is_empty() {
-                    return None;
-                }
-
-                host_functions::host_get_header_values(REQUEST_KIND, name)
+        let headers: HashMap<String, String> =
+            host_functions::host_get_header_names(crate::constants::http::REQUEST_KIND)
+                .unwrap_or_default()
+                .split(',')
+                .filter_map(|name| {
+                    if name.is_empty() {
+                        return None;
+                    }
+                    host_functions::host_get_header_values(
+                        crate::constants::http::REQUEST_KIND,
+                        name,
+                    )
                     .ok()
                     .map(|value| (name.to_string(), value))
-            })
-            .collect();
+                })
+                .collect();
+
+        // Convert headers for IP extraction
+        let header_map = Self::convert_header_hash_map_to_header_map(&headers);
 
         // Try to parse request body as JSON
-        let body = host_functions::host_read_body(REQUEST_KIND)
+        let body = host_functions::host_read_body(crate::constants::http::REQUEST_KIND)
             .ok()
-            .and_then(|bytes| {
-                String::from_utf8(bytes)
-                    .ok()
-                    .and_then(|s| serde_json::from_str(&s).ok())
-            });
-
-        // Extract IP from headers
-        let ip = extract_ip_from_headers(&Self::convert_header_hash_map_to_header_map(&headers))
-            .unwrap_or_else(|| "unknown".to_string());
+            .and_then(|bytes| String::from_utf8(bytes).ok())
+            .and_then(|s| serde_json::from_str(&s).ok());
 
         RequestInfo {
             timestamp: Utc::now(),
-            ip,
+            ip: extract_ip_from_headers(&header_map).unwrap_or_else(|| "unknown".to_string()),
             url: host_functions::host_get_uri().unwrap_or_default(),
             user_agent: headers.get("user-agent").cloned().unwrap_or_default(),
             method: host_functions::host_get_method().unwrap_or_default(),
@@ -81,35 +84,32 @@ impl HttpExtractor for WasmExtractor {
     }
 
     fn extract_response_info(_res: &Self::Response, duration: Duration) -> ResponseInfo {
-        // Collect response headers
-        let headers: HashMap<String, String> = host_functions::host_get_header_names(RESPONSE_KIND)
-            .unwrap_or_default()
-            .split(',')
-            .filter_map(|name| {
-                if name.is_empty() {
-                    return None;
-                }
-
-                host_functions::host_get_header_values(RESPONSE_KIND, name)
+        let headers: HashMap<String, String> =
+            host_functions::host_get_header_names(crate::constants::http::RESPONSE_KIND)
+                .unwrap_or_default()
+                .split(',')
+                .filter_map(|name| {
+                    if name.is_empty() {
+                        return None;
+                    }
+                    host_functions::host_get_header_values(
+                        crate::constants::http::RESPONSE_KIND,
+                        name,
+                    )
                     .ok()
                     .map(|value| (name.to_string(), value))
-            })
-            .collect();
-
-        // Try to read response body if buffering is enabled
-        let body = if CONFIG.buffer_response {
-            host_functions::host_read_body(RESPONSE_KIND)
-                .ok()
-                .and_then(|bytes| {
-                    String::from_utf8(bytes)
-                        .ok()
-                        .and_then(|s| serde_json::from_str(&s).ok())
                 })
+                .collect();
+
+        let body = if CONFIG.buffer_response {
+            host_functions::host_read_body(crate::constants::http::RESPONSE_KIND)
+                .ok()
+                .and_then(|bytes| String::from_utf8(bytes).ok())
+                .and_then(|s| serde_json::from_str(&s).ok())
         } else {
             None
         };
 
-        // Get content length if available
         let size = headers
             .get("content-length")
             .and_then(|v| v.parse().ok())
@@ -153,32 +153,41 @@ impl HttpExtractor for WasmExtractor {
             None
         }
     }
+
+    fn extract_server_info() -> ServerInfo {
+        SERVER_INFO
+            .get_or_init(|| {
+                ServerInfo {
+                    ip: "wasm".to_string(),      // Since we're in WASM, we can't get local IP
+                    timezone: "UTC".to_string(), // WASM environment defaults to UTC
+                    software: Some(format!("traefik-wasm/{}", env!("CARGO_PKG_VERSION"))),
+                    signature: None,
+                    protocol: "HTTP/1.1".to_string(),
+                    encoding: None,
+                    os: OsInfo {
+                        name: "wasm".to_string(),
+                        release: "1.0".to_string(),
+                        architecture: "wasm32".to_string(),
+                    },
+                }
+            })
+            .clone()
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::host_functions::test as host_test;
+    use crate::{host_functions::test as host_test, test_utils};
     use serde_json::json;
-    use std::sync::Once;
-
-    static INIT: Once = Once::new();
 
     fn setup() {
-        INIT.call_once(|| {
-            let config_json = r#"{
-                "apiKey": "test_key",
-                "projectId": "test_project",
-                "ignoredRoutes": ["/health"],
-                "ignoredRoutesRegex": ["^/internal/.*$"],
-                "bufferResponse": true
-            }"#;
-            host_test::setup_config(config_json);
-        });
+        test_utils::setup_test_config();
     }
 
     #[test]
     fn test_extract_request_info() {
+        setup();
         host_test::setup_request(
             "POST",
             "/api/test",
@@ -198,6 +207,33 @@ mod tests {
         assert_eq!(info.ip, "127.0.0.1");
         assert_eq!(info.user_agent, "test-agent");
         assert!(info.body.is_some());
+        if let Some(body) = info.body {
+            assert_eq!(body["test"], "value");
+        }
+    }
+
+    #[test]
+    fn test_empty_body_handling() {
+        setup();
+        host_test::setup_request("GET", "/test", "HTTP/1.1", vec![], vec![]);
+
+        let info = WasmExtractor::extract_request_info(&());
+        assert!(info.body.is_none());
+    }
+
+    #[test]
+    fn test_invalid_json_body() {
+        setup();
+        host_test::setup_request(
+            "POST",
+            "/test",
+            "HTTP/1.1",
+            vec![("content-type".to_string(), "application/json".to_string())],
+            b"invalid json".to_vec(),
+        );
+
+        let info = WasmExtractor::extract_request_info(&());
+        assert!(info.body.is_none());
     }
 
     #[test]
@@ -207,7 +243,7 @@ mod tests {
             200,
             vec![
                 ("content-type".to_string(), "application/json".to_string()),
-                ("content-length".to_string(), "123".to_string()),
+                ("content-length".to_string(), "23".to_string()),
             ],
             json!({ "result": "success" }).to_string().into_bytes(),
         );
@@ -215,73 +251,44 @@ mod tests {
         let info = WasmExtractor::extract_response_info(&(), Duration::from_secs(1));
 
         assert_eq!(info.code, 200);
-        assert_eq!(info.size, 123);
+        assert_eq!(info.size, 23);
         assert_eq!(info.load_time, 1.0);
-        if CONFIG.buffer_response {
-            assert!(info.body.is_some());
+        if let Some(body) = info.body {
+            assert_eq!(body["result"], "success");
         }
     }
 
     #[test]
-    fn test_empty_body_handling() {
-        host_test::setup_request("GET", "/test", "HTTP/1.1", vec![], vec![]);
-
-        let info = WasmExtractor::extract_request_info(&());
-        assert!(info.body.is_none());
-    }
-
-    #[test]
-    fn test_invalid_json_body() {
-        host_test::setup_request(
-            "POST",
-            "/test",
-            "HTTP/1.1",
-            vec![("content-type".to_string(), "application/json".to_string())],
-            "invalid json".as_bytes().to_vec(),
-        );
-
-        let info = WasmExtractor::extract_request_info(&());
-        assert!(info.body.is_none());
-    }
-
-    #[test]
     fn test_ip_extraction() {
-        // Test X-Forwarded-For
-        host_test::setup_request(
-            "GET",
-            "/test",
-            "HTTP/1.1",
-            vec![("x-forwarded-for".to_string(), "192.168.1.1".to_string())],
-            vec![],
-        );
-        let info = WasmExtractor::extract_request_info(&());
-        assert_eq!(info.ip, "192.168.1.1");
+        setup();
+        let test_cases = vec![
+            // Test X-Forwarded-For
+            (
+                vec![("x-forwarded-for".to_string(), "192.168.1.1".to_string())],
+                "192.168.1.1",
+            ),
+            // Test X-Real-IP
+            (
+                vec![("x-real-ip".to_string(), "10.0.0.1".to_string())],
+                "10.0.0.1",
+            ),
+            // Test Forwarded header
+            (
+                vec![("forwarded".to_string(), "for=172.16.1.1".to_string())],
+                "172.16.1.1",
+            ),
+        ];
 
-        // Test X-Real-IP
-        host_test::setup_request(
-            "GET",
-            "/test",
-            "HTTP/1.1",
-            vec![("x-real-ip".to_string(), "10.0.0.1".to_string())],
-            vec![],
-        );
-        let info = WasmExtractor::extract_request_info(&());
-        assert_eq!(info.ip, "10.0.0.1");
-
-        // Test Forwarded header (RFC 7239)
-        host_test::setup_request(
-            "GET",
-            "/test",
-            "HTTP/1.1",
-            vec![("forwarded".to_string(), "for=172.16.1.1".to_string())],
-            vec![],
-        );
-        let info = WasmExtractor::extract_request_info(&());
-        assert_eq!(info.ip, "172.16.1.1");
+        for (headers, expected_ip) in test_cases {
+            host_test::setup_request("GET", "/test", "HTTP/1.1", headers, vec![]);
+            let info = WasmExtractor::extract_request_info(&());
+            assert_eq!(info.ip, expected_ip);
+        }
     }
 
     #[test]
     fn test_error_extraction() {
+        setup();
         host_test::setup_response(
             404,
             vec![("content-type".to_string(), "application/json".to_string())],

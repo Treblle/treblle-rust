@@ -1,14 +1,14 @@
 use chrono::Utc;
-use rocket::{Request, Response};
-use serde_json::Value;
-use std::{sync::RwLock, time::Duration, sync::OnceLock};
-use treblle_core::{
-    payload::HttpExtractor,
-    schema::{ErrorInfo, RequestInfo, ResponseInfo, ServerInfo, OsInfo},
-    utils::extract_ip_from_headers,
-};
 use http::HeaderMap;
 use rocket::http::Status;
+use rocket::{Request, Response};
+use serde_json::Value;
+use std::{sync::OnceLock, sync::RwLock, time::Duration};
+use treblle_core::{
+    extractors::TreblleExtractor,
+    schema::{ErrorInfo, OsInfo, RequestInfo, ResponseInfo, ServerInfo},
+    utils::extract_ip_from_headers,
+};
 
 static SERVER_INFO: OnceLock<ServerInfo> = OnceLock::new();
 
@@ -22,31 +22,13 @@ pub struct TreblleState {
 pub struct RocketExtractor;
 
 impl RocketExtractor {
-    fn get_server_info() -> &'static ServerInfo {
-        SERVER_INFO.get_or_init(|| {
-            let os_info = os_info::get();
-            ServerInfo {
-                ip: local_ip_address::local_ip()
-                    .map(|ip| ip.to_string())
-                    .unwrap_or_else(|_| "unknown".to_string()),
-                timezone: time::UtcOffset::current_local_offset()
-                    .map(|o| o.to_string())
-                    .unwrap_or_else(|_| "UTC".to_string()),
-                software: Some(format!("rocket/{}", env!("CARGO_PKG_VERSION"))),
-                signature: None,
-                protocol: "HTTP/1.1".to_string(),
-                encoding: None,
-                os: OsInfo {
-                    name: std::env::consts::OS.to_string(),
-                    release: os_info.version().to_string(),
-                    architecture: std::env::consts::ARCH.to_string(),
-                },
-            }
-        })
-    }
-
     fn construct_full_url(req: &Request<'_>) -> String {
-        let scheme = if req.headers().get_one("X-Forwarded-Proto").map(|h| h == "https").unwrap_or(false) {
+        let scheme = if req
+            .headers()
+            .get_one("X-Forwarded-Proto")
+            .map(|h| h == "https")
+            .unwrap_or(false)
+        {
             "https"
         } else {
             "http"
@@ -61,7 +43,7 @@ impl RocketExtractor {
         for header in headers.iter() {
             if let (Ok(name), Ok(value)) = (
                 http::header::HeaderName::from_bytes(header.name.as_str().as_bytes()),
-                http::header::HeaderValue::from_str(&header.value.to_string())
+                http::header::HeaderValue::from_str(&header.value.to_string()),
             ) {
                 http_headers.insert(name, value);
             }
@@ -74,7 +56,7 @@ impl RocketExtractor {
     }
 }
 
-impl HttpExtractor for RocketExtractor {
+impl TreblleExtractor for RocketExtractor {
     type Request = Request<'static>;
     type Response = Response<'static>;
 
@@ -82,7 +64,8 @@ impl HttpExtractor for RocketExtractor {
         let headers = Self::convert_headers_to_http(req.headers());
 
         // Use rocket() to get access to state in Rocket 0.5
-        let body = req.rocket()
+        let body = req
+            .rocket()
             .state::<TreblleState>()
             .and_then(|state| state.request_body.read().ok())
             .and_then(|guard| guard.clone());
@@ -93,11 +76,15 @@ impl HttpExtractor for RocketExtractor {
                 .or_else(|| req.client_ip().map(|addr| addr.to_string()))
                 .unwrap_or_else(|| "unknown".to_string()),
             url: Self::construct_full_url(req),
-            user_agent: req.headers().get_one("User-Agent")
+            user_agent: req
+                .headers()
+                .get_one("User-Agent")
                 .unwrap_or("")
                 .to_string(),
             method: req.method().to_string(),
-            headers: req.headers().iter()
+            headers: req
+                .headers()
+                .iter()
                 .map(|h| (h.name.to_string(), h.value.to_string()))
                 .collect(),
             body,
@@ -105,13 +92,16 @@ impl HttpExtractor for RocketExtractor {
     }
 
     fn extract_response_info(res: &Self::Response, duration: Duration) -> ResponseInfo {
-        let size = res.headers()
+        let size = res
+            .headers()
             .get_one("Content-Length")
             .and_then(|val| val.parse::<u64>().ok())
             .unwrap_or(0);
 
         ResponseInfo {
-            headers: res.headers().iter()
+            headers: res
+                .headers()
+                .iter()
                 .map(|h| (h.name.to_string(), h.value.to_string()))
                 .collect(),
             code: res.status().code,
@@ -124,9 +114,11 @@ impl HttpExtractor for RocketExtractor {
     fn extract_error_info(res: &Self::Response) -> Option<Vec<ErrorInfo>> {
         if Self::is_error_status(res.status()) {
             // For Rocket responses, we'll use status code and reason
-            let message = format!("HTTP {} {}",
-                                  res.status().code,
-                                  res.status().reason().unwrap_or(""));
+            let message = format!(
+                "HTTP {} {}",
+                res.status().code,
+                res.status().reason().unwrap_or("")
+            );
 
             Some(vec![ErrorInfo {
                 source: "rocket".to_string(),
@@ -140,7 +132,28 @@ impl HttpExtractor for RocketExtractor {
         }
     }
 
-    fn get_server_info() -> ServerInfo {
-        Self::get_server_info().clone()
+    fn extract_server_info() -> ServerInfo {
+        SERVER_INFO
+            .get_or_init(|| {
+                let os_info = os_info::get();
+                ServerInfo {
+                    ip: local_ip_address::local_ip()
+                        .map(|ip| ip.to_string())
+                        .unwrap_or_else(|_| "unknown".to_string()),
+                    timezone: time::UtcOffset::current_local_offset()
+                        .map(|o| o.to_string())
+                        .unwrap_or_else(|_| "UTC".to_string()),
+                    software: Some(format!("rocket/{}", env!("CARGO_PKG_VERSION"))),
+                    signature: None,
+                    protocol: "HTTP/1.1".to_string(),
+                    encoding: None,
+                    os: OsInfo {
+                        name: std::env::consts::OS.to_string(),
+                        release: os_info.version().to_string(),
+                        architecture: std::env::consts::ARCH.to_string(),
+                    },
+                }
+            })
+            .clone()
     }
 }

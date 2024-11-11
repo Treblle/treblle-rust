@@ -1,4 +1,7 @@
-use crate::schema::{RequestInfo, ResponseInfo};
+use crate::{
+    schema::{RequestInfo, ResponseInfo},
+    ErrorInfo, ServerInfo,
+};
 use std::time::Duration;
 
 pub trait TreblleExtractor {
@@ -7,6 +10,6 @@ pub trait TreblleExtractor {
 
     fn extract_request_info(req: &Self::Request) -> RequestInfo;
     fn extract_response_info(res: &Self::Response, duration: Duration) -> ResponseInfo;
-    fn extract_request_body(req: &Self::Request) -> Option<String>;
-    fn extract_response_body(res: &Self::Response) -> Option<String>;
+    fn extract_error_info(res: &Self::Response) -> Option<Vec<ErrorInfo>>;
+    fn extract_server_info() -> ServerInfo;
 }

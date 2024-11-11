@@ -1,24 +1,25 @@
 #[cfg(test)]
 pub mod tests {
-    use std::time::Duration;
     use crate::extractors::ActixExtractor;
     use crate::{ActixConfig, Treblle, TreblleConfig, TreblleMiddleware};
     use actix_http::{header, HttpMessage, StatusCode};
-    use actix_web::{http::header::ContentType, test, web, App, FromRequest, HttpResponse};
     use actix_web::dev::ServiceResponse;
+    use actix_web::{http::header::ContentType, test, web, App, FromRequest, HttpResponse};
     use bytes::Bytes;
     use futures_util::FutureExt;
     use serde_json::{json, Value};
-    use treblle_core::payload::HttpExtractor;
+    use std::time::Duration;
+    use treblle_core::extractors::TreblleExtractor;
     use treblle_core::PayloadBuilder;
 
     fn create_test_request(headers: Vec<(&str, &str)>) -> actix_web::dev::ServiceRequest {
         let _app = test::init_service(
-            App::new().default_service(web::to(|| async { HttpResponse::Ok().finish() }))
-        ).now_or_never().unwrap();
+            App::new().default_service(web::to(|| async { HttpResponse::Ok().finish() })),
+        )
+        .now_or_never()
+        .unwrap();
 
-        let mut req = test::TestRequest::default()
-            .uri("/test"); // Set the URI explicitly
+        let mut req = test::TestRequest::default().uri("/test"); // Set the URI explicitly
 
         for (name, value) in headers {
             req = req.insert_header((name, value));
@@ -29,7 +30,7 @@ pub mod tests {
 
     #[actix_web::test]
     async fn test_server_info() {
-        let server_info = ActixExtractor::get_server_info();
+        let server_info = ActixExtractor::extract_server_info();
 
         assert!(!server_info.ip.is_empty());
         assert!(!server_info.timezone.is_empty());
@@ -40,36 +41,25 @@ pub mod tests {
         assert!(!server_info.os.architecture.is_empty());
 
         // Test caching - should return the same instance
-        let server_info2 = ActixExtractor::get_server_info();
-        assert_eq!(
-            format!("{:?}", server_info),
-            format!("{:?}", server_info2)
-        );
+        let server_info2 = ActixExtractor::extract_server_info();
+        assert_eq!(format!("{:?}", server_info), format!("{:?}", server_info2));
     }
 
     #[actix_web::test]
     async fn test_url_construction() {
         let test_cases = vec![
             (
-                vec![
-                    ("Host", "api.example.com"),
-                    ("X-Forwarded-Proto", "https"),
-                ],
+                vec![("Host", "api.example.com"), ("X-Forwarded-Proto", "https")],
                 "/test",
                 "https://api.example.com/test",
             ),
             (
-                vec![
-                    ("Host", "localhost:8080"),
-                ],
+                vec![("Host", "localhost:8080")],
                 "/api/v1/users",
                 "http://localhost:8080/api/v1/users",
             ),
             (
-                vec![
-                    ("Host", "api.example.com"),
-                    ("X-Forwarded-Proto", "https"),
-                ],
+                vec![("Host", "api.example.com"), ("X-Forwarded-Proto", "https")],
                 "/test?query=value",
                 "https://api.example.com/test?query=value",
             ),
@@ -77,8 +67,9 @@ pub mod tests {
 
         for (headers, path, expected_url) in test_cases {
             let _app = test::init_service(
-                App::new().default_service(web::to(|| async { HttpResponse::Ok().finish() }))
-            ).await;
+                App::new().default_service(web::to(|| async { HttpResponse::Ok().finish() })),
+            )
+            .await;
 
             let mut req = test::TestRequest::default().uri(path);
             for (name, value) in headers {
@@ -94,14 +85,8 @@ pub mod tests {
     #[actix_web::test]
     async fn test_ip_extraction() {
         let test_cases = vec![
-            (
-                vec![("X-Forwarded-For", "203.0.113.195")],
-                "203.0.113.195",
-            ),
-            (
-                vec![("X-Real-IP", "203.0.113.196")],
-                "203.0.113.196",
-            ),
+            (vec![("X-Forwarded-For", "203.0.113.195")], "203.0.113.195"),
+            (vec![("X-Real-IP", "203.0.113.196")], "203.0.113.196"),
             (
                 vec![("Forwarded", "for=192.0.2.60;proto=http;by=203.0.113.43")],
                 "192.0.2.60",
@@ -134,21 +119,15 @@ pub mod tests {
         let test_cases = vec![
             (
                 json!({
-                "key": "value",
-                "nested": {
-                    "array": [1, 2, 3]
-                }
-            }),
+                    "key": "value",
+                    "nested": {
+                        "array": [1, 2, 3]
+                    }
+                }),
                 None, // No explicit Content-Length
             ),
-            (
-                json!("simple string"),
-                Some(15),
-            ),
-            (
-                json!({"empty": {}}),
-                Some(12),
-            ),
+            (json!("simple string"), Some(15)),
+            (json!({"empty": {}}), Some(12)),
         ];
 
         for (body, expected_size) in test_cases {
@@ -170,16 +149,22 @@ pub mod tests {
                 req,
                 HttpResponse::Ok()
                     .content_type("application/json")
-                    .body(body_string.clone()) // Clone for debugging
+                    .body(body_string.clone()), // Clone for debugging
             );
 
             let info = ActixExtractor::extract_response_info(&resp, Duration::from_secs(1));
 
             // If Content-Length was explicitly set, use that, otherwise use body length
             let expected = expected_size.unwrap_or(body_len);
-            assert_eq!(info.size, expected,
-                       "Size mismatch for body: {}. Expected: {}, got: {}. Body length: {}",
-                       body, expected, info.size, body_string.len());
+            assert_eq!(
+                info.size,
+                expected,
+                "Size mismatch for body: {}. Expected: {}, got: {}. Body length: {}",
+                body,
+                expected,
+                info.size,
+                body_string.len()
+            );
         }
     }
 
@@ -215,13 +200,14 @@ pub mod tests {
 
         for (status, error_body, expected_message) in test_cases {
             let req = test::TestRequest::default().to_http_request();
-            req.extensions_mut().insert(Bytes::from(error_body.to_string()));
+            req.extensions_mut()
+                .insert(Bytes::from(error_body.to_string()));
 
             let resp = ServiceResponse::new(
                 req,
                 HttpResponse::build(status)
                     .content_type("application/json")
-                    .body(error_body.to_string())
+                    .body(error_body.to_string()),
             );
 
             let errors = ActixExtractor::extract_error_info(&resp).unwrap();
@@ -248,9 +234,17 @@ pub mod tests {
 
         assert_eq!(treblle.config.core.api_key, "api_key");
         assert_eq!(treblle.config.core.project_id, "project_id");
-        assert!(treblle.config.core.masked_fields.iter()
+        assert!(treblle
+            .config
+            .core
+            .masked_fields
+            .iter()
             .any(|r| r.as_str().contains("custom_field")));
-        assert!(treblle.config.core.ignored_routes.iter()
+        assert!(treblle
+            .config
+            .core
+            .ignored_routes
+            .iter()
             .any(|r| r.as_str().contains("/health")));
     }
 
@@ -261,11 +255,11 @@ pub mod tests {
         let app = test::init_service(
             App::new()
                 .app_data(web::Data::new(config.clone()))
-                .route("/test", web::get().to(|| async { "ok" }))
-        ).await;
+                .route("/test", web::get().to(|| async { "ok" })),
+        )
+        .await;
 
-        let req = test::TestRequest::default()
-            .to_request();
+        let req = test::TestRequest::default().to_request();
 
         let srv_req = test::call_service(&app, req).await;
         let config_extracted = TreblleConfig::extract(&srv_req.request()).await.unwrap();
@@ -366,17 +360,16 @@ pub mod tests {
 
         for (payload, fields_to_check) in test_cases {
             let mut config = setup_test_config();
-            config.core.add_masked_fields(vec![
-                "number".to_string(),
-                "cvv".to_string()
-            ]);
+            config
+                .core
+                .add_masked_fields(vec!["number".to_string(), "cvv".to_string()]);
 
             let app = test::init_service(
                 App::new()
                     .wrap(TreblleMiddleware::new(config.clone()))
                     .route("/echo", web::post().to(echo_handler)),
             )
-                .await;
+            .await;
 
             let payload_bytes = payload.to_string();
 
@@ -449,17 +442,17 @@ pub mod tests {
 
         let mut config = ActixConfig::new("test_key".to_string(), "test_project".to_string());
 
-        config.core.add_masked_fields_regex(vec![
-            r"(?i)number$".to_string(),
-            r"(?i)^cvv$".to_string()
-        ]).unwrap();
+        config
+            .core
+            .add_masked_fields_regex(vec![r"(?i)number$".to_string(), r"(?i)^cvv$".to_string()])
+            .unwrap();
 
         let app = test::init_service(
             App::new()
                 .wrap(TreblleMiddleware::new(config.clone()))
                 .route("/echo", web::post().to(echo_handler)),
         )
-            .await;
+        .await;
 
         let payload_bytes = test_data.to_string();
 
@@ -522,16 +515,14 @@ pub mod tests {
     #[actix_web::test]
     async fn test_treblle_payload_creation() {
         let mut config = ActixConfig::new("test_key".to_string(), "test_project".to_string());
-        config
-            .core
-            .add_masked_fields(vec!["password".to_string()]);
+        config.core.add_masked_fields(vec!["password".to_string()]);
 
         let _app = test::init_service(
             App::new()
                 .wrap(TreblleMiddleware::new(config.clone()))
                 .route("/echo", web::post().to(echo_handler)),
         )
-            .await;
+        .await;
 
         let test_data = json!({
             "username": "test_user",
@@ -566,7 +557,7 @@ pub mod tests {
                 .wrap(TreblleMiddleware::new(config))
                 .route("/text", web::get().to(text_handler)),
         )
-            .await;
+        .await;
 
         let req = test::TestRequest::get().uri("/text").to_request();
 
@@ -580,7 +571,9 @@ pub mod tests {
     #[actix_web::test]
     async fn test_middleware_respects_ignored_routes() {
         let mut config = ActixConfig::new("test_key".to_string(), "test_project".to_string());
-        config.core.add_ignored_routes(vec!["/ignored.*".to_string()]);
+        config
+            .core
+            .add_ignored_routes(vec!["/ignored.*".to_string()]);
         config.core.add_masked_fields(vec!["password".to_string()]);
 
         let app = test::init_service(
@@ -588,7 +581,7 @@ pub mod tests {
                 .wrap(TreblleMiddleware::new(config))
                 .route("/ignored", web::post().to(ignored_handler)),
         )
-            .await;
+        .await;
 
         let test_data = json!({
             "password": "secret123",
@@ -617,7 +610,7 @@ pub mod tests {
                 .wrap(TreblleMiddleware::new(config))
                 .route("/echo", web::post().to(echo_handler)),
         )
-            .await;
+        .await;
 
         let test_data = json!({
             "user": {
@@ -667,14 +660,18 @@ pub mod tests {
         });
 
         let req = test::TestRequest::default().to_http_request();
-        req.extensions_mut().insert(Bytes::from(json_data.to_string()));
+        req.extensions_mut()
+            .insert(Bytes::from(json_data.to_string()));
 
         let res = ServiceResponse::new(
             req,
             HttpResponse::Ok()
                 .content_type("application/json")
-                .insert_header((header::CONTENT_LENGTH, json_data.to_string().len().to_string()))
-                .body(json_data.to_string())
+                .insert_header((
+                    header::CONTENT_LENGTH,
+                    json_data.to_string().len().to_string(),
+                ))
+                .body(json_data.to_string()),
         );
 
         let info = ActixExtractor::extract_response_info(&res, Duration::from_secs(1));
@@ -698,13 +695,14 @@ pub mod tests {
         });
 
         let req = test::TestRequest::default().to_http_request();
-        req.extensions_mut().insert(Bytes::from(error_body.to_string()));
+        req.extensions_mut()
+            .insert(Bytes::from(error_body.to_string()));
 
         let res = ServiceResponse::new(
             req,
             HttpResponse::NotFound()
                 .content_type("application/json")
-                .body(error_body.to_string())
+                .body(error_body.to_string()),
         );
 
         let errors = ActixExtractor::extract_error_info(&res).unwrap();
@@ -722,7 +720,7 @@ pub mod tests {
             req,
             HttpResponse::Ok()
                 .content_type("application/json")
-                .body("{}")
+                .body("{}"),
         );
 
         let info = ActixExtractor::extract_response_info(&res, Duration::from_secs(1));
@@ -738,7 +736,7 @@ pub mod tests {
             req,
             HttpResponse::BadRequest()
                 .content_type("application/json")
-                .body("invalid json")
+                .body("invalid json"),
         );
 
         let info = ActixExtractor::extract_response_info(&res, Duration::from_secs(1));

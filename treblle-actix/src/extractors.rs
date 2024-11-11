@@ -1,54 +1,36 @@
+use actix_http::body::MessageBody;
+use actix_http::header::HeaderMap as ActixHeaderMap;
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
-    HttpMessage,
     web::Bytes,
+    HttpMessage,
 };
-use std::time::Duration;
-use std::sync::OnceLock;
-use actix_http::body::MessageBody;
-use treblle_core::{
-    payload::HttpExtractor,
-    schema::{RequestInfo, ResponseInfo, ErrorInfo, ServerInfo, OsInfo},
-};
-use serde_json::Value;
-use tracing::warn;
-use actix_http::header::HeaderMap as ActixHeaderMap;
 use http::HeaderMap as HttpHeaderMap;
+use serde_json::Value;
+use std::sync::OnceLock;
+use std::time::Duration;
+use tracing::warn;
+use treblle_core::{
+    extractors::TreblleExtractor,
+    schema::{ErrorInfo, OsInfo, RequestInfo, ResponseInfo, ServerInfo},
+};
 
 pub struct ActixExtractor;
 
 static SERVER_INFO: OnceLock<ServerInfo> = OnceLock::new();
 
 impl ActixExtractor {
-    fn get_server_info() -> &'static ServerInfo {
-        SERVER_INFO.get_or_init(|| {
-            let os_info = os_info::get();
-            ServerInfo {
-                ip: local_ip_address::local_ip()
-                    .map(|ip| ip.to_string())
-                    .unwrap_or_else(|_| "unknown".to_string()),
-                timezone: time::UtcOffset::current_local_offset()
-                    .map(|o| o.to_string())
-                    .unwrap_or_else(|_| "UTC".to_string()),
-                software: Some(format!("actix-web/{}", env!("CARGO_PKG_VERSION"))),
-                signature: None,
-                protocol: "HTTP/1.1".to_string(),
-                encoding: None,
-                os: OsInfo {
-                    name: std::env::consts::OS.to_string(),
-                    release: os_info.version().to_string(),
-                    architecture: std::env::consts::ARCH.to_string(),
-                },
-            }
-        })
-    }
-
     fn construct_full_url(req: &ServiceRequest) -> String {
         let connection_info = req.connection_info();
         let scheme = connection_info.scheme();
         let host = connection_info.host();
         let uri = req.uri();
-        format!("{}://{}{}", scheme, host, uri.path_and_query().map(|p| p.as_str()).unwrap_or(""))
+        format!(
+            "{}://{}{}",
+            scheme,
+            host,
+            uri.path_and_query().map(|p| p.as_str()).unwrap_or("")
+        )
     }
 
     // Convert Actix HeaderMap to HTTP HeaderMap
@@ -65,7 +47,7 @@ impl ActixExtractor {
     }
 }
 
-impl HttpExtractor for ActixExtractor {
+impl TreblleExtractor for ActixExtractor {
     type Request = ServiceRequest;
     type Response = ServiceResponse;
 
@@ -77,26 +59,25 @@ impl HttpExtractor for ActixExtractor {
                 .or_else(|| Some(req.connection_info().realip_remote_addr()?.to_string()))
                 .unwrap_or_else(|| "unknown".to_string()),
             url: Self::construct_full_url(req),
-            user_agent: req.headers()
+            user_agent: req
+                .headers()
                 .get("User-Agent")
                 .and_then(|h| h.to_str().ok())
                 .unwrap_or("")
                 .to_string(),
             method: req.method().to_string(),
-            headers: req.headers()
+            headers: req
+                .headers()
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
                 .collect(),
-            body: req.request()
-                .extensions()
-                .get::<Bytes>()
-                .and_then(|bytes| {
-                    if bytes.is_empty() {
-                        None
-                    } else {
-                        serde_json::from_slice(bytes).ok()
-                    }
-                }),
+            body: req.request().extensions().get::<Bytes>().and_then(|bytes| {
+                if bytes.is_empty() {
+                    None
+                } else {
+                    serde_json::from_slice(bytes).ok()
+                }
+            }),
         }
     }
 
@@ -108,23 +89,21 @@ impl HttpExtractor for ActixExtractor {
         };
 
         ResponseInfo {
-            headers: res.headers()
+            headers: res
+                .headers()
                 .iter()
                 .map(|(k, v)| (k.to_string(), v.to_str().unwrap_or("").to_string()))
                 .collect(),
             code: res.status().as_u16(),
             size: body_size,
             load_time: duration.as_secs_f64(),
-            body: res.request()
-                .extensions()
-                .get::<Bytes>()
-                .and_then(|bytes| {
-                    if bytes.is_empty() {
-                        None
-                    } else {
-                        serde_json::from_slice(bytes).ok()
-                    }
-                }),
+            body: res.request().extensions().get::<Bytes>().and_then(|bytes| {
+                if bytes.is_empty() {
+                    None
+                } else {
+                    serde_json::from_slice(bytes).ok()
+                }
+            }),
         }
     }
 
@@ -175,7 +154,28 @@ impl HttpExtractor for ActixExtractor {
         }
     }
 
-    fn get_server_info() -> ServerInfo {
-        Self::get_server_info().clone()
+    fn extract_server_info() -> ServerInfo {
+        SERVER_INFO
+            .get_or_init(|| {
+                let os_info = os_info::get();
+                ServerInfo {
+                    ip: local_ip_address::local_ip()
+                        .map(|ip| ip.to_string())
+                        .unwrap_or_else(|_| "unknown".to_string()),
+                    timezone: time::UtcOffset::current_local_offset()
+                        .map(|o| o.to_string())
+                        .unwrap_or_else(|_| "UTC".to_string()),
+                    software: Some(format!("actix-web/{}", env!("CARGO_PKG_VERSION"))),
+                    signature: None,
+                    protocol: "HTTP/1.1".to_string(),
+                    encoding: None,
+                    os: OsInfo {
+                        name: std::env::consts::OS.to_string(),
+                        release: os_info.version().to_string(),
+                        architecture: std::env::consts::ARCH.to_string(),
+                    },
+                }
+            })
+            .clone()
     }
 }

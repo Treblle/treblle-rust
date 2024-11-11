@@ -1,13 +1,13 @@
 [package]
-    name                 = "treblle-actix"
-    description          = "Treblle integration for Actix web framework"
-    include = ["/src"]
-    version.workspace    = true
-    edition.workspace    = true
-    authors.workspace    = true
-    license.workspace    = true
-    repository.workspace = true
-    homepage.workspace   = true
+    name                   = "treblle-actix"
+    description            = "Treblle integration for Actix web framework"
+    include                = ["/src"]
+    version.workspace      = true
+    edition.workspace      = true
+    authors.workspace      = true
+    license.workspace      = true
+    repository.workspace   = true
+    homepage.workspace     = true
     rust-version.workspace = true
 
 [lints]
@@ -15,20 +15,16 @@
 
 [dependencies]
     treblle-core = { workspace = true }
-    actix-web    = {  version = "4.9.0", features = ["macros"] }
     actix-http   = "3.9"
-    futures      = "0.3"
-    reqwest      = { version = "0.12.8", features = ["json"] }
-    tokio        = { workspace = true, features = ["rt", "time"] }
-    log          = "0.4"
-    serde = { workspace = true , features = ["derive"] }
-    serde_json = { workspace = true }
-    chrono = "0.4.38"
-    futures-util = "0.3.31"
-    bytes = "1.7.2"
-    tracing = { workspace = true }
-    tracing-subscriber = { workspace = true }
-    time = { version = "0.3.36", features = ["local-offset"] }
-    local-ip-address = "0.6.3"
-    os_info = "3.7"
-http = "1.1.0"
+    actix-web    = { version = "4.9.0", features = ["macros"] }
+
+    bytes            = "1.7.2"
+    chrono           = { workspace = true }
+    futures-util     = "0.3.31"
+    http             = { workspace = true }
+    local-ip-address = { workspace = true }
+    os_info          = { workspace = true }
+    serde            = { workspace = true, features = ["derive"] }
+    serde_json       = { workspace = true }
+    time             = { workspace = true, features = ["local-offset"] }
+    tracing          = { workspace = true }

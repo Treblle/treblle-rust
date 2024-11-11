@@ -31,7 +31,7 @@ treblle-core = "0.1.0"
 ## Example
 
 ```rust
-use treblle_core::{Config, TreblleClient, HttpExtractor};
+use treblle_core::{Config, TreblleClient, TreblleExtractor};
 
 // Create configuration
 let config = Config::new(
@@ -42,10 +42,10 @@ let config = Config::new(
 // Initialize client
 let client = TreblleClient::new(config)?;
 
-// Implement the HttpExtractor trait for your framework
+// Implement the TreblleExtractor trait for your framework
 struct MyFrameworkExtractor;
 
-impl HttpExtractor for MyFrameworkExtractor {
+impl TreblleExtractor for MyFrameworkExtractor {
     type Request = MyRequest;
     type Response = MyResponse;
 

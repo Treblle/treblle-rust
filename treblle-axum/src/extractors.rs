@@ -2,42 +2,19 @@ use axum::body::Body;
 use axum::http::{Request, Response};
 use hyper::body::Bytes;
 use serde_json::Value;
+use std::sync::OnceLock;
 use std::time::Duration;
 use treblle_core::{
-    payload::HttpExtractor,
+    extractors::TreblleExtractor,
     schema::{ErrorInfo, OsInfo, RequestInfo, ResponseInfo, ServerInfo},
     utils::extract_ip_from_headers,
 };
-use std::sync::OnceLock;
 
 pub struct AxumExtractor;
 
 static SERVER_INFO: OnceLock<ServerInfo> = OnceLock::new();
 
 impl AxumExtractor {
-    fn get_server_info() -> &'static ServerInfo {
-        SERVER_INFO.get_or_init(|| {
-            let os_info = os_info::get();
-            ServerInfo {
-                ip: local_ip_address::local_ip()
-                    .map(|ip| ip.to_string())
-                    .unwrap_or_else(|_| "unknown".to_string()),
-                timezone: time::UtcOffset::current_local_offset()
-                    .map(|o| o.to_string())
-                    .unwrap_or_else(|_| "UTC".to_string()), // Provide default timezone
-                software: Some(format!("axum/{}", env!("CARGO_PKG_VERSION"))),
-                signature: None,
-                protocol: "HTTP/1.1".to_string(),
-                encoding: None,
-                os: OsInfo {
-                    name: std::env::consts::OS.to_string(),
-                    release: os_info.version().to_string(),
-                    architecture: std::env::consts::ARCH.to_string(),
-                },
-            }
-        })
-    }
-
     fn construct_full_url(req: &Request<Body>) -> String {
         let scheme = req.uri().scheme_str().unwrap_or("http");
         let host = req
@@ -51,15 +28,14 @@ impl AxumExtractor {
     }
 }
 
-impl HttpExtractor for AxumExtractor {
+impl TreblleExtractor for AxumExtractor {
     type Request = Request<Body>;
     type Response = Response<Body>;
 
     fn extract_request_info(req: &Self::Request) -> RequestInfo {
         RequestInfo {
             timestamp: chrono::Utc::now(),
-            ip: extract_ip_from_headers(req.headers())
-                .unwrap_or_else(|| "unknown".to_string()),
+            ip: extract_ip_from_headers(req.headers()).unwrap_or_else(|| "unknown".to_string()),
             url: Self::construct_full_url(req),
             user_agent: req
                 .headers()
@@ -141,7 +117,28 @@ impl HttpExtractor for AxumExtractor {
         }
     }
 
-    fn get_server_info() -> ServerInfo {
-        Self::get_server_info().clone()
+    fn extract_server_info() -> ServerInfo {
+        SERVER_INFO
+            .get_or_init(|| {
+                let os_info = os_info::get();
+                ServerInfo {
+                    ip: local_ip_address::local_ip()
+                        .map(|ip| ip.to_string())
+                        .unwrap_or_else(|_| "unknown".to_string()),
+                    timezone: time::UtcOffset::current_local_offset()
+                        .map(|o| o.to_string())
+                        .unwrap_or_else(|_| "UTC".to_string()), // Provide default timezone
+                    software: Some(format!("axum/{}", env!("CARGO_PKG_VERSION"))),
+                    signature: None,
+                    protocol: "HTTP/1.1".to_string(),
+                    encoding: None,
+                    os: OsInfo {
+                        name: std::env::consts::OS.to_string(),
+                        release: os_info.version().to_string(),
+                        architecture: std::env::consts::ARCH.to_string(),
+                    },
+                }
+            })
+            .clone()
     }
 }

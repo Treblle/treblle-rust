@@ -1,20 +1,13 @@
-use crate::schema::{
-    ErrorInfo, LanguageInfo, PayloadData, RequestInfo, ResponseInfo, ServerInfo, TrebllePayload,
-};
 use crate::utils::{hashmap_to_json_value, json_value_to_hashmap, mask_sensitive_data};
 use crate::Config;
+use crate::{
+    extractors::TreblleExtractor,
+    schema::{
+        ErrorInfo, LanguageInfo, PayloadData, RequestInfo, ResponseInfo, ServerInfo, TrebllePayload,
+    },
+};
 use serde_json::Value;
 use std::time::Duration;
-
-pub trait HttpExtractor {
-    type Request;
-    type Response;
-
-    fn extract_request_info(req: &Self::Request) -> RequestInfo;
-    fn extract_response_info(res: &Self::Response, duration: Duration) -> ResponseInfo;
-    fn extract_error_info(res: &Self::Response) -> Option<Vec<ErrorInfo>>;
-    fn get_server_info() -> ServerInfo;
-}
 
 pub struct PayloadBuilder;
 
@@ -59,7 +52,7 @@ impl PayloadBuilder {
         errors
     }
 
-    pub fn build_request_payload<E: HttpExtractor>(
+    pub fn build_request_payload<E: TreblleExtractor>(
         req: &E::Request,
         config: &Config,
     ) -> TrebllePayload {
@@ -102,7 +95,7 @@ impl PayloadBuilder {
         }
     }
 
-    pub fn build_response_payload<E: HttpExtractor>(
+    pub fn build_response_payload<E: TreblleExtractor>(
         res: &E::Response,
         config: &Config,
         duration: Duration,
@@ -151,6 +144,8 @@ impl PayloadBuilder {
 
 #[cfg(test)]
 mod tests {
+    use crate::schema::OsInfo;
+
     use super::*;
     use serde_json::json;
     use std::collections::HashMap;
@@ -164,9 +159,25 @@ mod tests {
 
     struct MockExtractor;
 
-    impl HttpExtractor for MockExtractor {
+    impl TreblleExtractor for MockExtractor {
         type Request = ();
         type Response = MockResponse;
+
+        fn extract_server_info() -> ServerInfo {
+            ServerInfo {
+                ip: "127.0.0.1".to_string(),
+                timezone: "UTC".to_string(),
+                software: Some("mock-server/1.0".to_string()),
+                signature: None,
+                protocol: "HTTP/1.1".to_string(),
+                encoding: None,
+                os: OsInfo {
+                    name: "mock-os".to_string(),
+                    release: "1.0".to_string(),
+                    architecture: "mock64".to_string(),
+                },
+            }
+        }
 
         fn extract_request_info(_req: &Self::Request) -> RequestInfo {
             let mut headers = HashMap::new();

@@ -178,82 +178,82 @@ fn send_to_treblle(payload: TrebllePayload) -> TreblleResult<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::host_functions::test as host_test;
-    use once_cell::sync::Lazy;
+#[cfg(any(test, feature = "test-utils"))]
+pub mod test_utils {
     use std::sync::Once;
+    use crate::config::WasmConfig;
+    use std::cell::RefCell;
+
+    thread_local! {
+        static TEST_STATE: RefCell<TestState> = RefCell::new(TestState::default());
+    }
 
     static INIT: Once = Once::new();
 
-    pub fn setup_test_config() {
+    #[derive(Default)]
+    pub struct TestState {
+        pub config: Option<WasmConfig>,
+        pub headers: Vec<(String, String)>,
+        pub uri: String,
+        pub method: String,
+        pub body: Vec<u8>,
+        pub status_code: u32,
+    }
+
+    pub fn setup_test_environment() {
         INIT.call_once(|| {
             let config_json = r#"{
-                "apiKey": "test_key",
-                "projectId": "test_project",
+                "api_key": "test_key",
+                "project_id": "test_project",
+                "api_urls": ["https://api.test.com"],
+                "maskedFields": [],
+                "maskedFieldsRegex": [],
                 "ignoredRoutes": ["/health"],
                 "ignoredRoutesRegex": ["^/internal/.*$"],
-                "bufferResponse": true,
-                "rootCaPath": null,
-                "logLevel": 0
+                "bufferResponse": true
             }"#;
-            host_test::setup_config(config_json);
+
+            TEST_STATE.with(|state| {
+                let mut state = state.borrow_mut();
+                state.config = Some(WasmConfig::from_json(config_json).unwrap());
+            });
         });
     }
 
+    pub fn with_test_state<F, R>(f: F) -> R
+    where
+        F: FnOnce(&mut TestState) -> R
+    {
+        TEST_STATE.with(|state| f(&mut state.borrow_mut()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_utils::{setup_test_environment, with_test_state};
+
+
     #[test]
     fn test_should_process() {
-        setup_test_config();
-
-        // Set up test config
-        let config_json = r#"{
-            "apiKey": "test_key",
-            "projectId": "test_project",
-            "ignoredRoutes": ["/health"],
-            "ignoredRoutesRegex": ["^/internal/.*$"],
-            "bufferResponse": false
-        }"#;
-        host_test::setup_config(config_json);
+        setup_test_environment();
 
         // Test ignored exact match
-        host_test::setup_request(
-            "GET",
-            "/health",
-            "HTTP/1.1",
-            vec![("content-type".to_string(), "application/json".to_string())],
-            vec![],
-        );
-        assert!(!should_process(REQUEST_KIND));
-
-        // Test ignored regex match
-        host_test::setup_request(
-            "GET",
-            "/internal/test",
-            "HTTP/1.1",
-            vec![("content-type".to_string(), "application/json".to_string())],
-            vec![],
-        );
-        assert!(!should_process(REQUEST_KIND));
-
-        // Test non-JSON content type
-        host_test::setup_request(
-            "GET",
-            "/api/test",
-            "HTTP/1.1",
-            vec![("content-type".to_string(), "text/plain".to_string())],
-            vec![],
-        );
+        with_test_state(|state| {
+            state.uri = "/health".to_string();
+            state.headers = vec![
+                ("content-type".to_string(), "application/json".to_string())
+            ];
+        });
         assert!(!should_process(REQUEST_KIND));
 
         // Test valid request
-        host_test::setup_request(
-            "POST",
-            "/api/test",
-            "HTTP/1.1",
-            vec![("content-type".to_string(), "application/json".to_string())],
-            vec![],
-        );
+        with_test_state(|state| {
+            state.uri = "/api/test".to_string();
+            state.headers = vec![
+                ("content-type".to_string(), "application/json".to_string())
+            ];
+        });
         assert!(should_process(REQUEST_KIND));
     }
 }

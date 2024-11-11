@@ -327,6 +327,7 @@ pub mod test {
     use super::*;
     use once_cell::sync::Lazy;
     use std::sync::Mutex;
+    use crate::test_utils;
 
     #[derive(Default)]
     pub struct TestState {
@@ -479,9 +480,8 @@ pub mod test {
 
     #[test]
     fn test_invalid_header_name() {
-        setup_request("GET", "/test", "HTTP/1.1", vec![], vec![]);
-
-        let result = host_get_header_values(0, "invalid\nheader");
+        test_utils::setup_test_config();
+        let result = host_get_header_values(0, "invalid\0header");
         assert!(result.is_err());
     }
 }
