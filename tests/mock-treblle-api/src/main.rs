@@ -164,21 +164,15 @@ async fn get_metrics(State(state): State<Arc<AppState>>) -> Json<ApiMetrics> {
 #[tokio::main]
 async fn main() {
     // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter("debug,tower_http=debug")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("debug,tower_http=debug").init();
 
     // Initialize metrics
     let builder = PrometheusBuilder::new();
     let builder = builder
-        .set_buckets(&[
-            0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
-        ])
+        .set_buckets(&[0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0])
         .unwrap();
 
-    let handle = builder
-        .install_recorder()
-        .expect("failed to install Prometheus recorder");
+    let handle = builder.install_recorder().expect("failed to install Prometheus recorder");
 
     // Initialize state
     let state = Arc::new(AppState {

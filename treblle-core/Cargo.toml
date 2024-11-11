@@ -1,13 +1,13 @@
 [package]
-    name                 = "treblle-core"
-    description          = "Core functionality for Treblle Rust integrations"
-    include = ["/src"]
-    version.workspace    = true
-    edition.workspace    = true
-    authors.workspace    = true
-    license.workspace    = true
-    repository.workspace = true
-    homepage.workspace   = true
+    name                   = "treblle-core"
+    description            = "Core functionality for Treblle Rust integrations"
+    include                = ["/src"]
+    version.workspace      = true
+    edition.workspace      = true
+    authors.workspace      = true
+    license.workspace      = true
+    repository.workspace   = true
+    homepage.workspace     = true
     rust-version.workspace = true
 
 [lints]
@@ -19,10 +19,10 @@
     chrono     = { version = "0.4", features = ["serde"] }
     regex      = "1.5"
     thiserror  = "1.0"
-    http = "1.1.0"
-    rustls = "0.23.14"
-    reqwest      = { version = "0.12.8", features = ["json"] }
-    tokio = { workspace = true }
+    http       = "1.1.0"
+    rustls     = "0.23.14"
+    reqwest    = { version = "0.12.8", features = ["json"] }
+    tokio      = { workspace = true }
 
 [dev-dependencies]
     wiremock = "0.6.2"

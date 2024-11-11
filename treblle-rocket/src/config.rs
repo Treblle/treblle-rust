@@ -10,9 +10,7 @@ pub struct RocketConfig {
 
 impl RocketConfig {
     pub fn new(api_key: String, project_id: String) -> Self {
-        RocketConfig {
-            core: CoreConfig::new(api_key, project_id),
-        }
+        RocketConfig { core: CoreConfig::new(api_key, project_id) }
     }
 
     pub fn add_masked_fields(&mut self, fields: Vec<String>) -> &mut Self {
@@ -28,8 +26,6 @@ impl RocketConfig {
 
 impl Default for RocketConfig {
     fn default() -> Self {
-        RocketConfig {
-            core: CoreConfig::default(),
-        }
+        RocketConfig { core: CoreConfig::default() }
     }
 }

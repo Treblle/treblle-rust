@@ -9,7 +9,7 @@ use axum::{middleware::from_fn_with_state, Router};
 use std::sync::Arc;
 
 pub use config::AxumConfig;
-pub use middleware::{TreblleLayer, treblle_middleware};
+pub use middleware::{treblle_middleware, TreblleLayer};
 
 /// Treblle service for Axum
 #[derive(Clone)]
@@ -20,9 +20,7 @@ pub struct Treblle {
 impl Treblle {
     /// Create a new Treblle instance with the given configuration
     pub fn new(api_key: String, project_id: String) -> Self {
-        Treblle {
-            config: AxumConfig::new(api_key, project_id),
-        }
+        Treblle { config: AxumConfig::new(api_key, project_id) }
     }
 
     /// Add additional fields to mask

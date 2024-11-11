@@ -1,6 +1,6 @@
+use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use chrono::{DateTime, Utc};
 
 /// Represents the main payload sent to Treblle API.
 #[derive(Debug, Serialize, Deserialize)]
@@ -77,7 +77,7 @@ pub struct ResponseInfo {
 }
 
 /// Represents error information.
-#[derive(Debug, Serialize, Deserialize, Clone)]  // Added Clone here
+#[derive(Debug, Serialize, Deserialize, Clone)] // Added Clone here
 pub struct ErrorInfo {
     pub source: String,
     #[serde(rename = "type")]

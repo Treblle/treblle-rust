@@ -17,11 +17,7 @@ static SERVER_INFO: OnceLock<ServerInfo> = OnceLock::new();
 impl AxumExtractor {
     fn construct_full_url(req: &Request<Body>) -> String {
         let scheme = req.uri().scheme_str().unwrap_or("http");
-        let host = req
-            .headers()
-            .get("host")
-            .and_then(|h| h.to_str().ok())
-            .unwrap_or("");
+        let host = req.headers().get("host").and_then(|h| h.to_str().ok()).unwrap_or("");
         let path_and_query = req.uri().path_and_query().map(|p| p.as_str()).unwrap_or("");
 
         format!("{}://{}{}", scheme, host, path_and_query)
@@ -57,11 +53,7 @@ impl TreblleExtractor for AxumExtractor {
     }
 
     fn extract_response_info(res: &Self::Response, duration: Duration) -> ResponseInfo {
-        let body_size = res
-            .extensions()
-            .get::<Bytes>()
-            .map(|b| b.len() as u64)
-            .unwrap_or(0);
+        let body_size = res.extensions().get::<Bytes>().map(|b| b.len() as u64).unwrap_or(0);
 
         ResponseInfo {
             headers: res

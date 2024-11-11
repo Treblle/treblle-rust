@@ -36,11 +36,7 @@ pub mod tests {
 
         #[post("/validate", format = "json", data = "<input>")]
         pub fn validate(input: Json<Value>) -> Result<Json<Value>, Status> {
-            if input
-                .get("valid")
-                .and_then(|v| v.as_bool())
-                .unwrap_or(false)
-            {
+            if input.get("valid").and_then(|v| v.as_bool()).unwrap_or(false) {
                 Ok(Json(json!({ "status": "valid" })))
             } else {
                 Err(Status::BadRequest)
@@ -65,16 +61,8 @@ pub mod tests {
 
             assert_eq!(config.core.api_key, "test_key");
             assert_eq!(config.core.project_id, "test_project");
-            assert!(config
-                .core
-                .masked_fields
-                .iter()
-                .any(|r| r.as_str().contains("password")));
-            assert!(config
-                .core
-                .ignored_routes
-                .iter()
-                .any(|r| r.as_str().contains("/health")));
+            assert!(config.core.masked_fields.iter().any(|r| r.as_str().contains("password")));
+            assert!(config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
         }
     }
 

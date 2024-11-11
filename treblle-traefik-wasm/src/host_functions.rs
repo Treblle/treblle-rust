@@ -58,11 +58,7 @@ pub fn host_log(level: i32, message: &str) {
         let sanitized_message = message.replace('\0', "");
         if let Ok(c_message) = CString::new(sanitized_message) {
             unsafe {
-                log(
-                    level,
-                    c_message.as_ptr() as *const u8,
-                    c_message.as_bytes().len() as u32,
-                );
+                log(level, c_message.as_ptr() as *const u8, c_message.as_bytes().len() as u32);
             }
         }
     }
@@ -167,12 +163,7 @@ pub fn host_get_header_names(header_kind: u32) -> Result<String> {
     #[cfg(test)]
     {
         let state = test::TEST_STATE.lock().unwrap();
-        Ok(state
-            .headers
-            .iter()
-            .map(|(name, _)| name.clone())
-            .collect::<Vec<_>>()
-            .join(","))
+        Ok(state.headers.iter().map(|(name, _)| name.clone()).collect::<Vec<_>>().join(","))
     }
 
     #[cfg(not(test))]
@@ -312,9 +303,7 @@ where
     let len = read_fn(buffer.as_mut_ptr(), buffer.len() as i32);
 
     if len < 0 {
-        return Err(TreblleError::HostFunction(
-            "Failed to read from buffer".to_string(),
-        ));
+        return Err(TreblleError::HostFunction("Failed to read from buffer".to_string()));
     }
 
     buffer.truncate(len as usize);
@@ -325,9 +314,9 @@ where
 #[cfg(test)]
 pub mod test {
     use super::*;
+    use crate::test_utils;
     use once_cell::sync::Lazy;
     use std::sync::Mutex;
-    use crate::test_utils;
 
     #[derive(Default)]
     pub struct TestState {
@@ -421,10 +410,7 @@ pub mod test {
             vec![],
         );
 
-        assert_eq!(
-            host_get_header_values(0, "accept").unwrap(),
-            "application/json,text/plain"
-        );
+        assert_eq!(host_get_header_values(0, "accept").unwrap(), "application/json,text/plain");
     }
 
     #[test]

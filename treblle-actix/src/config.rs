@@ -14,10 +14,7 @@ pub struct ActixConfig {
 
 impl ActixConfig {
     pub fn new(api_key: String, project_id: String) -> Self {
-        ActixConfig {
-            core: Config::new(api_key, project_id),
-            buffer_response: false,
-        }
+        ActixConfig { core: Config::new(api_key, project_id), buffer_response: false }
     }
 
     pub fn buffer_response(mut self, buffer: bool) -> Self {
@@ -28,9 +25,6 @@ impl ActixConfig {
 
 impl Default for ActixConfig {
     fn default() -> Self {
-        ActixConfig {
-            core: Config::default(),
-            buffer_response: false,
-        }
+        ActixConfig { core: Config::default(), buffer_response: false }
     }
 }

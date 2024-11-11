@@ -11,12 +11,11 @@ use tracing::error;
 
 use crate::config::RocketConfig;
 use crate::extractors::TreblleState;
+use treblle_core::constants::MAX_BODY_SIZE;
 use treblle_core::{
     schema::{LanguageInfo, PayloadData, RequestInfo, ResponseInfo, ServerInfo, TrebllePayload},
     TreblleClient,
 };
-use treblle_core::constants::MAX_BODY_SIZE;
-
 
 static START_TIME: OnceCell<Instant> = OnceCell::const_new();
 
@@ -30,8 +29,7 @@ impl TreblleFairing {
     pub fn new(config: RocketConfig) -> Self {
         TreblleFairing {
             treblle_client: Arc::new(
-                TreblleClient::new(config.core.clone())
-                    .expect("Failed to create Treblle client"),
+                TreblleClient::new(config.core.clone()).expect("Failed to create Treblle client"),
             ),
             config: Arc::new(config),
         }
@@ -41,10 +39,7 @@ impl TreblleFairing {
 #[rocket::async_trait]
 impl Fairing for TreblleFairing {
     fn info(&self) -> Info {
-        Info {
-            name: "Treblle",
-            kind: Kind::Request | Kind::Response | Kind::Singleton,
-        }
+        Info { name: "Treblle", kind: Kind::Request | Kind::Response | Kind::Singleton }
     }
 
     async fn on_request(&self, req: &mut Request<'_>, data: &mut Data<'_>) {
@@ -53,10 +48,7 @@ impl Fairing for TreblleFairing {
 
         // Only process JSON requests that aren't ignored
         let should_process = !config.core.should_ignore_route(&req.uri().path().to_string())
-            && req
-            .content_type()
-            .map(|ct| ct.is_json())
-            .unwrap_or(false);
+            && req.content_type().map(|ct| ct.is_json()).unwrap_or(false);
 
         if should_process {
             if START_TIME.get().is_none() {
@@ -87,15 +79,20 @@ impl Fairing for TreblleFairing {
                             },
                             request: RequestInfo {
                                 timestamp: chrono::Utc::now(),
-                                ip: req.client_ip()
+                                ip: req
+                                    .client_ip()
                                     .map(|addr| addr.to_string())
                                     .unwrap_or_else(|| "unknown".to_string()),
                                 url: req.uri().to_string(),
                                 method: req.method().to_string(),
-                                headers: req.headers().iter()
+                                headers: req
+                                    .headers()
+                                    .iter()
                                     .map(|h| (h.name.to_string(), h.value.to_string()))
                                     .collect(),
-                                user_agent: req.headers().get_one("User-Agent")
+                                user_agent: req
+                                    .headers()
+                                    .get_one("User-Agent")
                                     .unwrap_or("")
                                     .to_string(),
                                 body: Some(json_body),
@@ -135,11 +132,14 @@ impl Fairing for TreblleFairing {
                     },
                     request: RequestInfo::default(),
                     response: ResponseInfo {
-                        headers: res.headers().iter()
+                        headers: res
+                            .headers()
+                            .iter()
                             .map(|h| (h.name.to_string(), h.value.to_string()))
                             .collect(),
                         code: res.status().code,
-                        size: res.headers()
+                        size: res
+                            .headers()
                             .get_one("content-length")
                             .and_then(|val| val.parse::<u64>().ok())
                             .unwrap_or(0),

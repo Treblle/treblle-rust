@@ -1,6 +1,6 @@
+use crate::constants::log_level;
 use serde::{Deserialize, Serialize};
 use treblle_core::Config as CoreConfig;
-use crate::constants::log_level;
 
 #[cfg_attr(not(target_arch = "wasm32"), derive(Clone, Debug, Serialize, Deserialize))]
 pub struct WasmConfig {
@@ -32,8 +32,9 @@ impl WasmConfig {
     }
 
     pub fn from_json(json: &str) -> Result<Self, treblle_core::error::TreblleError> {
-        let wasm_config: WasmConfig = serde_json::from_str(json)
-            .map_err(|e| treblle_core::error::TreblleError::Config(format!("Invalid JSON configuration: {}", e)))?;
+        let wasm_config: WasmConfig = serde_json::from_str(json).map_err(|e| {
+            treblle_core::error::TreblleError::Config(format!("Invalid JSON configuration: {}", e))
+        })?;
         wasm_config.core.validate()?;
         Ok(wasm_config)
     }

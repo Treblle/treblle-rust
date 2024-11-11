@@ -25,12 +25,7 @@ impl ActixExtractor {
         let scheme = connection_info.scheme();
         let host = connection_info.host();
         let uri = req.uri();
-        format!(
-            "{}://{}{}",
-            scheme,
-            host,
-            uri.path_and_query().map(|p| p.as_str()).unwrap_or("")
-        )
+        format!("{}://{}{}", scheme, host, uri.path_and_query().map(|p| p.as_str()).unwrap_or(""))
     }
 
     // Convert Actix HeaderMap to HTTP HeaderMap

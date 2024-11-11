@@ -21,9 +21,7 @@ pub struct Treblle {
 impl Treblle {
     /// Create a new Treblle instance with API key and project ID
     pub fn new(api_key: String, project_id: String) -> Self {
-        Treblle {
-            config: RocketConfig::new(api_key, project_id),
-        }
+        Treblle { config: RocketConfig::new(api_key, project_id) }
     }
 
     /// Add fields to mask in the request/response data
@@ -51,7 +49,6 @@ pub trait TreblleExt {
 
 impl TreblleExt for rocket::Rocket<rocket::Build> {
     fn attach_treblle(self, api_key: String, project_id: String) -> Self {
-        self.attach(Treblle::new(api_key, project_id).fairing())
-            .manage(TreblleState::default())
+        self.attach(Treblle::new(api_key, project_id).fairing()).manage(TreblleState::default())
     }
 }

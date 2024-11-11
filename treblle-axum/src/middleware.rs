@@ -9,8 +9,8 @@ use axum::{
 use std::sync::Arc;
 use std::time::Instant;
 use tracing::{debug, error};
-use treblle_core::{payload::PayloadBuilder, TreblleClient};
 use treblle_core::constants::MAX_BODY_SIZE;
+use treblle_core::{payload::PayloadBuilder, TreblleClient};
 
 #[derive(Clone)]
 pub struct TreblleLayer {
@@ -40,18 +40,16 @@ pub async fn treblle_middleware(
 
     let should_process = !config.core.should_ignore_route(req.uri().path())
         && req
-        .headers()
-        .get("Content-Type")
-        .and_then(|ct| ct.to_str().ok())
-        .map(|ct| ct.starts_with("application/json"))
-        .unwrap_or(false);
+            .headers()
+            .get("Content-Type")
+            .and_then(|ct| ct.to_str().ok())
+            .map(|ct| ct.starts_with("application/json"))
+            .unwrap_or(false);
 
     // Process request for Treblle
     let req = if should_process {
         let (parts, body) = req.into_parts();
-        let bytes = axum::body::to_bytes(body, MAX_BODY_SIZE)
-            .await
-            .unwrap_or_default();
+        let bytes = axum::body::to_bytes(body, MAX_BODY_SIZE).await.unwrap_or_default();
 
         // Store original body for Treblle processing
         let mut new_req = Request::from_parts(parts, Body::from(bytes.clone()));
@@ -80,9 +78,7 @@ pub async fn treblle_middleware(
         let duration = start_time.elapsed();
 
         let (parts, body) = response.into_parts();
-        let bytes = axum::body::to_bytes(body, MAX_BODY_SIZE)
-            .await
-            .unwrap_or_default();
+        let bytes = axum::body::to_bytes(body, MAX_BODY_SIZE).await.unwrap_or_default();
 
         // Store original body for Treblle processing
         response = Response::from_parts(parts, Body::from(bytes.clone()));

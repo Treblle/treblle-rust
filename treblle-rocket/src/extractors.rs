@@ -23,16 +23,12 @@ pub struct RocketExtractor;
 
 impl RocketExtractor {
     fn construct_full_url(req: &Request<'_>) -> String {
-        let scheme = if req
-            .headers()
-            .get_one("X-Forwarded-Proto")
-            .map(|h| h == "https")
-            .unwrap_or(false)
-        {
-            "https"
-        } else {
-            "http"
-        };
+        let scheme =
+            if req.headers().get_one("X-Forwarded-Proto").map(|h| h == "https").unwrap_or(false) {
+                "https"
+            } else {
+                "http"
+            };
 
         let host = req.headers().get_one("Host").unwrap_or("localhost");
         format!("{}://{}{}", scheme, host, req.uri())
@@ -76,11 +72,7 @@ impl TreblleExtractor for RocketExtractor {
                 .or_else(|| req.client_ip().map(|addr| addr.to_string()))
                 .unwrap_or_else(|| "unknown".to_string()),
             url: Self::construct_full_url(req),
-            user_agent: req
-                .headers()
-                .get_one("User-Agent")
-                .unwrap_or("")
-                .to_string(),
+            user_agent: req.headers().get_one("User-Agent").unwrap_or("").to_string(),
             method: req.method().to_string(),
             headers: req
                 .headers()
@@ -114,11 +106,8 @@ impl TreblleExtractor for RocketExtractor {
     fn extract_error_info(res: &Self::Response) -> Option<Vec<ErrorInfo>> {
         if Self::is_error_status(res.status()) {
             // For Rocket responses, we'll use status code and reason
-            let message = format!(
-                "HTTP {} {}",
-                res.status().code,
-                res.status().reason().unwrap_or("")
-            );
+            let message =
+                format!("HTTP {} {}", res.status().code, res.status().reason().unwrap_or(""));
 
             Some(vec![ErrorInfo {
                 source: "rocket".to_string(),

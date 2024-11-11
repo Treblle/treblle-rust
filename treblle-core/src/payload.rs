@@ -60,21 +60,15 @@ impl PayloadBuilder {
 
         // Convert headers to Value, mask, and convert back
         let headers_value = hashmap_to_json_value(&request_info.headers);
-        let masked_headers = mask_sensitive_data(
-            &headers_value,
-            &config.masked_fields_regex,
-            &config.masked_fields,
-        );
+        let masked_headers =
+            mask_sensitive_data(&headers_value, &config.masked_fields_regex, &config.masked_fields);
 
         request_info.headers = json_value_to_hashmap(masked_headers);
 
         // Mask body if present
         if let Some(body) = request_info.body.as_ref() {
-            request_info.body = Some(mask_sensitive_data(
-                body,
-                &config.masked_fields_regex,
-                &config.masked_fields,
-            ));
+            request_info.body =
+                Some(mask_sensitive_data(body, &config.masked_fields_regex, &config.masked_fields));
         }
 
         TrebllePayload {
@@ -104,20 +98,14 @@ impl PayloadBuilder {
 
         // Convert headers to Value, mask, and convert back
         let headers_value = hashmap_to_json_value(&response_info.headers);
-        let masked_headers = mask_sensitive_data(
-            &headers_value,
-            &config.masked_fields_regex,
-            &config.masked_fields,
-        );
+        let masked_headers =
+            mask_sensitive_data(&headers_value, &config.masked_fields_regex, &config.masked_fields);
         response_info.headers = json_value_to_hashmap(masked_headers);
 
         // Mask body if present
         if let Some(body) = response_info.body.as_ref() {
-            response_info.body = Some(mask_sensitive_data(
-                body,
-                &config.masked_fields_regex,
-                &config.masked_fields,
-            ));
+            response_info.body =
+                Some(mask_sensitive_data(body, &config.masked_fields_regex, &config.masked_fields));
         }
 
         // Extract and process errors
@@ -214,18 +202,9 @@ mod tests {
         let payload = PayloadBuilder::build_request_payload::<MockExtractor>(&(), &config);
 
         assert_eq!(payload.api_key, "test_key");
-        assert_eq!(
-            payload.data.request.headers.get("password").unwrap(),
-            "*****"
-        );
-        assert_eq!(
-            payload.data.request.body.as_ref().unwrap()["password"],
-            "*****"
-        );
-        assert_eq!(
-            payload.data.request.body.as_ref().unwrap()["email"],
-            "test@example.com"
-        );
+        assert_eq!(payload.data.request.headers.get("password").unwrap(), "*****");
+        assert_eq!(payload.data.request.body.as_ref().unwrap()["password"], "*****");
+        assert_eq!(payload.data.request.body.as_ref().unwrap()["email"], "test@example.com");
     }
 
     #[test]
@@ -268,9 +247,7 @@ mod tests {
         assert_eq!(payload.data.response.code, 404);
         assert_eq!(payload.data.errors.len(), 1);
         assert_eq!(payload.data.errors[0].error_type, "HTTP_404");
-        assert!(payload.data.errors[0]
-            .message
-            .contains("Resource not found"));
+        assert!(payload.data.errors[0].message.contains("Resource not found"));
     }
 
     #[test]

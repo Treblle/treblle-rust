@@ -41,11 +41,8 @@ static CONFIG: Lazy<WasmConfig> = Lazy::new(|| {
 
 /// Global HTTP client instance
 #[cfg(target_arch = "wasm32")]
-static HTTP_CLIENT: Lazy<Mutex<wasi_http_client::WasiHttpClient>> = Lazy::new(|| {
-    Mutex::new(wasi_http_client::WasiHttpClient::new(
-        CONFIG.core.api_urls.clone(),
-    ))
-});
+static HTTP_CLIENT: Lazy<Mutex<wasi_http_client::WasiHttpClient>> =
+    Lazy::new(|| Mutex::new(wasi_http_client::WasiHttpClient::new(CONFIG.core.api_urls.clone())));
 
 /// Main handler for WASM middleware
 #[cfg(target_arch = "wasm32")]
@@ -138,12 +135,7 @@ fn should_process(kind: u32) -> bool {
         return false;
     }
 
-    if CONFIG
-        .core
-        .ignored_routes_regex
-        .iter()
-        .any(|re| re.is_match(&uri))
-    {
+    if CONFIG.core.ignored_routes_regex.iter().any(|re| re.is_match(&uri)) {
         return false;
     }
 
@@ -166,23 +158,21 @@ fn send_to_treblle(payload: TrebllePayload) -> TreblleResult<()> {
 
     let payload_json = payload.to_json()?;
 
-    http_client
-        .post(payload_json.as_bytes(), &CONFIG.core.api_key)
-        .map_err(|e| {
-            host_functions::host_log(
-                log_level::ERROR,
-                &format!("Failed to send data to Treblle API: {e}"),
-            );
-            TreblleError::Http(format!("Failed to send data to Treblle API: {e}"))
-        })?;
+    http_client.post(payload_json.as_bytes(), &CONFIG.core.api_key).map_err(|e| {
+        host_functions::host_log(
+            log_level::ERROR,
+            &format!("Failed to send data to Treblle API: {e}"),
+        );
+        TreblleError::Http(format!("Failed to send data to Treblle API: {e}"))
+    })?;
     Ok(())
 }
 
 #[cfg(any(test, feature = "test-utils"))]
 pub mod test_utils {
-    use std::sync::Once;
     use crate::config::WasmConfig;
     use std::cell::RefCell;
+    use std::sync::Once;
 
     thread_local! {
         static TEST_STATE: RefCell<TestState> = RefCell::new(TestState::default());
@@ -222,7 +212,7 @@ pub mod test_utils {
 
     pub fn with_test_state<F, R>(f: F) -> R
     where
-        F: FnOnce(&mut TestState) -> R
+        F: FnOnce(&mut TestState) -> R,
     {
         TEST_STATE.with(|state| f(&mut state.borrow_mut()))
     }
@@ -233,7 +223,6 @@ mod tests {
     use super::*;
     use crate::test_utils::{setup_test_environment, with_test_state};
 
-
     #[test]
     fn test_should_process() {
         setup_test_environment();
@@ -241,18 +230,14 @@ mod tests {
         // Test ignored exact match
         with_test_state(|state| {
             state.uri = "/health".to_string();
-            state.headers = vec![
-                ("content-type".to_string(), "application/json".to_string())
-            ];
+            state.headers = vec![("content-type".to_string(), "application/json".to_string())];
         });
         assert!(!should_process(REQUEST_KIND));
 
         // Test valid request
         with_test_state(|state| {
             state.uri = "/api/test".to_string();
-            state.headers = vec![
-                ("content-type".to_string(), "application/json".to_string())
-            ];
+            state.headers = vec![("content-type".to_string(), "application/json".to_string())];
         });
         assert!(should_process(REQUEST_KIND));
     }

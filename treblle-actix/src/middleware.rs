@@ -73,11 +73,11 @@ where
 
         let should_process = !config.core.should_ignore_route(req.uri().path())
             && req
-            .headers()
-            .get("Content-Type")
-            .and_then(|ct| ct.to_str().ok())
-            .map(|ct| ct.starts_with("application/json"))
-            .unwrap_or(false);
+                .headers()
+                .get("Content-Type")
+                .and_then(|ct| ct.to_str().ok())
+                .map(|ct| ct.starts_with("application/json"))
+                .unwrap_or(false);
 
         if should_process {
             req.request().extensions_mut().insert(Bytes::new());
@@ -123,5 +123,3 @@ where
         })
     }
 }
-
-

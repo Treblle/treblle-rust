@@ -110,10 +110,7 @@ impl TreblleExtractor for WasmExtractor {
             None
         };
 
-        let size = headers
-            .get("content-length")
-            .and_then(|v| v.parse().ok())
-            .unwrap_or(0);
+        let size = headers.get("content-length").and_then(|v| v.parse().ok()).unwrap_or(0);
 
         ResponseInfo {
             headers,
@@ -263,20 +260,11 @@ mod tests {
         setup();
         let test_cases = vec![
             // Test X-Forwarded-For
-            (
-                vec![("x-forwarded-for".to_string(), "192.168.1.1".to_string())],
-                "192.168.1.1",
-            ),
+            (vec![("x-forwarded-for".to_string(), "192.168.1.1".to_string())], "192.168.1.1"),
             // Test X-Real-IP
-            (
-                vec![("x-real-ip".to_string(), "10.0.0.1".to_string())],
-                "10.0.0.1",
-            ),
+            (vec![("x-real-ip".to_string(), "10.0.0.1".to_string())], "10.0.0.1"),
             // Test Forwarded header
-            (
-                vec![("forwarded".to_string(), "for=172.16.1.1".to_string())],
-                "172.16.1.1",
-            ),
+            (vec![("forwarded".to_string(), "for=172.16.1.1".to_string())], "172.16.1.1"),
         ];
 
         for (headers, expected_ip) in test_cases {

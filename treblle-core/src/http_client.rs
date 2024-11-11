@@ -31,11 +31,7 @@ impl TreblleClient {
             .build()
             .map_err(|e| TreblleError::Http(format!("Failed to create HTTP client: {}", e)))?;
 
-        Ok(Self {
-            client,
-            config,
-            current_url_index: AtomicUsize::new(0),
-        })
+        Ok(Self { client, config, current_url_index: AtomicUsize::new(0) })
     }
 
     fn get_next_url(&self) -> String {
@@ -63,8 +59,8 @@ impl TreblleClient {
 
 #[cfg(test)]
 mod tests {
-    use std::time::Duration;
     use super::*;
+    use std::time::Duration;
     use tokio;
     use wiremock::matchers::{header, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
@@ -120,7 +116,7 @@ mod tests {
         // Set up a mock that delays longer than our timeout
         Mock::given(method("POST"))
             .respond_with(
-                ResponseTemplate::new(200).set_delay(REQUEST_TIMEOUT + Duration::from_secs( 1)),
+                ResponseTemplate::new(200).set_delay(REQUEST_TIMEOUT + Duration::from_secs(1)),
             )
             .mount(&mock_server)
             .await;

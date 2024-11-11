@@ -40,11 +40,7 @@ pub fn mask_sensitive_data(
 
 /// Converts a HashMap to a JSON Value for masking
 pub fn hashmap_to_json_value(map: &std::collections::HashMap<String, String>) -> Value {
-    Value::Object(
-        map.iter()
-            .map(|(k, v)| (k.clone(), Value::String(v.clone())))
-            .collect(),
-    )
+    Value::Object(map.iter().map(|(k, v)| (k.clone(), Value::String(v.clone()))).collect())
 }
 
 /// Converts a JSON Value back to a HashMap after masking
@@ -74,12 +70,7 @@ pub fn extract_ip_from_headers(headers: &HeaderMap) -> Option<String> {
                 .split(';')
                 .find(|part| part.trim().to_lowercase().starts_with("for="))
                 .and_then(|for_part| {
-                    for_part
-                        .trim()
-                        .trim_start_matches("for=")
-                        .trim_matches('"')
-                        .split(',')
-                        .next()
+                    for_part.trim().trim_start_matches("for=").trim_matches('"').split(',').next()
                 })
             {
                 return Some(ip.trim().to_string());
@@ -193,9 +184,8 @@ mod tests {
     #[test]
     fn test_mask_sensitive_data() {
         let regex_patterns = vec![Regex::new(r"(?i)credit_card").unwrap()];
-        let exact_matches: HashSet<String> = vec!["password".to_string(), "api_key".to_string()]
-            .into_iter()
-            .collect();
+        let exact_matches: HashSet<String> =
+            vec!["password".to_string(), "api_key".to_string()].into_iter().collect();
 
         let data = json!({
             "password": "secret123",
@@ -249,10 +239,7 @@ mod tests {
             http::header::FORWARDED,
             HeaderValue::from_static("for=192.0.2.60;proto=http;by=203.0.113.43"),
         );
-        assert_eq!(
-            extract_ip_from_headers(&headers),
-            Some("192.0.2.60".to_string())
-        );
+        assert_eq!(extract_ip_from_headers(&headers), Some("192.0.2.60".to_string()));
 
         // Test X-Forwarded-For
         headers.clear();
@@ -260,25 +247,16 @@ mod tests {
             "x-forwarded-for",
             HeaderValue::from_static("203.0.113.195, 2001:db8:85a3:8d3:1319:8a2e:370:7348"),
         );
-        assert_eq!(
-            extract_ip_from_headers(&headers),
-            Some("203.0.113.195".to_string())
-        );
+        assert_eq!(extract_ip_from_headers(&headers), Some("203.0.113.195".to_string()));
 
         // Test X-Real-IP
         headers.clear();
         headers.insert("x-real-ip", HeaderValue::from_static("203.0.113.195"));
-        assert_eq!(
-            extract_ip_from_headers(&headers),
-            Some("203.0.113.195".to_string())
-        );
+        assert_eq!(extract_ip_from_headers(&headers), Some("203.0.113.195".to_string()));
 
         // Test with no IP headers
         headers.clear();
-        headers.insert(
-            http::header::USER_AGENT,
-            HeaderValue::from_static("Mozilla/5.0"),
-        );
+        headers.insert(http::header::USER_AGENT, HeaderValue::from_static("Mozilla/5.0"));
         assert_eq!(extract_ip_from_headers(&headers), None);
     }
 }

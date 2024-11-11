@@ -22,9 +22,8 @@ mod tests {
         use super::*;
 
         pub fn create_test_request(headers: Vec<(&str, &str)>) -> http::Request<Body> {
-            let builder = http::Request::builder()
-                .uri("https://api.example.com/test")
-                .method("POST");
+            let builder =
+                http::Request::builder().uri("https://api.example.com/test").method("POST");
 
             let headers_map = headers
                 .into_iter()
@@ -141,16 +140,8 @@ mod tests {
 
             assert_eq!(config.core.api_key, "test_key");
             assert_eq!(config.core.project_id, "test_project");
-            assert!(config
-                .core
-                .masked_fields
-                .iter()
-                .any(|r| r.as_str().contains("password")));
-            assert!(config
-                .core
-                .ignored_routes
-                .iter()
-                .any(|r| r.as_str().contains("/health")));
+            assert!(config.core.masked_fields.iter().any(|r| r.as_str().contains("password")));
+            assert!(config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
         }
     }
 
@@ -164,22 +155,13 @@ mod tests {
             let test_cases = vec![
                 (vec![("X-Forwarded-For", "203.0.113.195")], "203.0.113.195"),
                 (vec![("X-Real-IP", "203.0.113.196")], "203.0.113.196"),
+                (vec![("Forwarded", "for=192.0.2.60;proto=http;by=203.0.113.43")], "192.0.2.60"),
                 (
-                    vec![("Forwarded", "for=192.0.2.60;proto=http;by=203.0.113.43")],
-                    "192.0.2.60",
-                ),
-                (
-                    vec![
-                        ("X-Forwarded-For", "203.0.113.195"),
-                        ("X-Real-IP", "203.0.113.196"),
-                    ],
+                    vec![("X-Forwarded-For", "203.0.113.195"), ("X-Real-IP", "203.0.113.196")],
                     "203.0.113.195", // X-Forwarded-For should take precedence
                 ),
                 (
-                    vec![
-                        ("Forwarded", "for=192.0.2.60"),
-                        ("X-Forwarded-For", "203.0.113.195"),
-                    ],
+                    vec![("Forwarded", "for=192.0.2.60"), ("X-Forwarded-For", "203.0.113.195")],
                     "192.0.2.60", // Forwarded header should take precedence
                 ),
                 (vec![], "unknown"), // No IP headers present
@@ -251,10 +233,8 @@ mod tests {
             let body_bytes = Bytes::from(body.to_string());
             let expected_size = body_bytes.len() as u64;
 
-            let mut res = http::Response::builder()
-                .status(StatusCode::OK)
-                .body(Body::empty())
-                .unwrap();
+            let mut res =
+                http::Response::builder().status(StatusCode::OK).body(Body::empty()).unwrap();
 
             res.extensions_mut().insert(body_bytes);
 
@@ -292,10 +272,8 @@ mod tests {
             let body_bytes = Bytes::from(large_body);
             let expected_size = body_bytes.len() as u64;
 
-            let mut res = http::Response::builder()
-                .status(StatusCode::OK)
-                .body(Body::empty())
-                .unwrap();
+            let mut res =
+                http::Response::builder().status(StatusCode::OK).body(Body::empty()).unwrap();
 
             res.extensions_mut().insert(body_bytes);
 
@@ -363,13 +341,9 @@ mod tests {
             ];
 
             for (status, error_body, expected_message) in test_cases {
-                let mut res = http::Response::builder()
-                    .status(status)
-                    .body(Body::empty())
-                    .unwrap();
+                let mut res = http::Response::builder().status(status).body(Body::empty()).unwrap();
 
-                res.extensions_mut()
-                    .insert(Bytes::from(error_body.to_string()));
+                res.extensions_mut().insert(Bytes::from(error_body.to_string()));
 
                 let errors = AxumExtractor::extract_error_info(&res).unwrap();
                 assert_eq!(errors[0].source, "axum");
@@ -439,9 +413,7 @@ mod tests {
         #[tokio::test]
         async fn test_middleware_respects_ignored_routes() {
             let mut config = AxumConfig::new("test_key".to_string(), "test_project".to_string());
-            config
-                .core
-                .add_ignored_routes(vec!["/ignored.*".to_string()]);
+            config.core.add_ignored_routes(vec!["/ignored.*".to_string()]);
 
             let app = Router::new()
                 .route("/ignored", post(test_utils::echo_handler))
@@ -484,8 +456,7 @@ mod tests {
 
             let mut req = http::Request::new(Body::empty());
             *req.body_mut() = Body::from(test_data.to_string());
-            req.extensions_mut()
-                .insert(Bytes::from(test_data.to_string()));
+            req.extensions_mut().insert(Bytes::from(test_data.to_string()));
 
             let payload =
                 PayloadBuilder::build_request_payload::<AxumExtractor>(&req, &config.core);
@@ -648,9 +619,7 @@ mod tests {
 
             // Create config with specific fields that should be masked
             let mut config = AxumConfig::new("test_key".to_string(), "test_project".to_string());
-            config
-                .core
-                .add_masked_fields(vec!["number".to_string(), "cvv".to_string()]);
+            config.core.add_masked_fields(vec!["number".to_string(), "cvv".to_string()]);
 
             let treblle_payload =
                 PayloadBuilder::build_request_payload::<AxumExtractor>(&req, &config.core);
@@ -658,18 +627,9 @@ mod tests {
             // Verify masking in Treblle payload
             if let Some(body) = treblle_payload.data.request.body {
                 assert_eq!(body["user"]["email"].as_str().unwrap(), "test@example.com");
-                assert_eq!(
-                    body["user"]["credit_card"]["number"].as_str().unwrap(),
-                    "*****"
-                );
-                assert_eq!(
-                    body["user"]["credit_card"]["expiry"].as_str().unwrap(),
-                    "12/24"
-                );
-                assert_eq!(
-                    body["user"]["credit_card"]["cvv"].as_str().unwrap(),
-                    "*****"
-                );
+                assert_eq!(body["user"]["credit_card"]["number"].as_str().unwrap(), "*****");
+                assert_eq!(body["user"]["credit_card"]["expiry"].as_str().unwrap(), "12/24");
+                assert_eq!(body["user"]["credit_card"]["cvv"].as_str().unwrap(), "*****");
                 assert_eq!(
                     body["user"]["shipping_address"]["street"].as_str().unwrap(),
                     "123 Main St"

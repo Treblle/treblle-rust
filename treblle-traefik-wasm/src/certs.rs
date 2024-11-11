@@ -4,8 +4,8 @@ use std::io::BufReader;
 
 use treblle_core::error::{Result, TreblleError};
 
-use crate::host_functions::host_log;
 use crate::constants::log_level;
+use crate::host_functions::host_log;
 use crate::CONFIG;
 
 pub fn load_root_certs(root_store: &mut RootCertStore) -> Result<()> {

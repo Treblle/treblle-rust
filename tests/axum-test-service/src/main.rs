@@ -65,7 +65,8 @@ async fn handle_json(
         metrics.processing_time_ms.push(processing_time);
 
         counter!("requests_total", "type" => "regular", "endpoint" => "json").increment(1);
-        gauge!("request_processing_time", "type" => "regular", "endpoint" => "json").set(processing_time as f64);
+        gauge!("request_processing_time", "type" => "regular", "endpoint" => "json")
+            .set(processing_time as f64);
     }
 
     Json(ApiResponse {
@@ -93,7 +94,8 @@ async fn handle_dynamic(
         metrics.processing_time_ms.push(processing_time);
 
         counter!("requests_total", "type" => "regular", "endpoint" => "dynamic").increment(1);
-        gauge!("request_processing_time", "type" => "regular", "endpoint" => "dynamic").set(processing_time as f64);
+        gauge!("request_processing_time", "type" => "regular", "endpoint" => "dynamic")
+            .set(processing_time as f64);
     }
 
     Json(DynamicResponse {
@@ -103,10 +105,7 @@ async fn handle_dynamic(
     })
 }
 
-async fn handle_text(
-    State(state): State<Arc<AppState>>,
-    body: String,
-) -> String {
+async fn handle_text(State(state): State<Arc<AppState>>, body: String) -> String {
     let start = Instant::now();
     let processing_time = start.elapsed().as_millis() as u64;
 
@@ -116,7 +115,8 @@ async fn handle_text(
         metrics.processing_time_ms.push(processing_time);
 
         counter!("requests_total", "type" => "regular", "endpoint" => "text").increment(1);
-        gauge!("request_processing_time", "type" => "regular", "endpoint" => "text").set(processing_time as f64);
+        gauge!("request_processing_time", "type" => "regular", "endpoint" => "text")
+            .set(processing_time as f64);
     }
 
     format!("Processed: {}", body)
@@ -134,14 +134,11 @@ async fn metrics_handler(State(state): State<Arc<AppState>>) -> String {
 #[tokio::main]
 async fn main() {
     // Initialize tracing
-    tracing_subscriber::fmt()
-        .with_env_filter("info,tower_http=debug")
-        .init();
+    tracing_subscriber::fmt().with_env_filter("info,tower_http=debug").init();
 
     // Initialize metrics
-    let prometheus_handle = PrometheusBuilder::new()
-        .install_recorder()
-        .expect("failed to install Prometheus recorder");
+    let prometheus_handle =
+        PrometheusBuilder::new().install_recorder().expect("failed to install Prometheus recorder");
 
     // Initialize state
     let state = Arc::new(AppState {
@@ -154,8 +151,8 @@ async fn main() {
         std::env::var("TREBLLE_API_KEY").unwrap_or_else(|_| "test_key".to_string()),
         std::env::var("TREBLLE_PROJECT_ID").unwrap_or_else(|_| "test_project".to_string()),
     )
-        .add_masked_fields(vec!["sensitive_data".to_string()])
-        .add_ignored_routes(vec!["/health".to_string(), "/metrics".to_string()]);
+    .add_masked_fields(vec!["sensitive_data".to_string()])
+    .add_ignored_routes(vec!["/health".to_string(), "/metrics".to_string()]);
 
     // Regular routes without Treblle
     let regular_routes = Router::new()

@@ -75,9 +75,7 @@ pub mod tests {
         }
 
         pub async fn text_handler() -> HttpResponse {
-            HttpResponse::Ok()
-                .content_type("text/plain")
-                .body("Hello, World!")
+            HttpResponse::Ok().content_type("text/plain").body("Hello, World!")
         }
 
         pub async fn ignored_handler(body: web::Json<Value>) -> HttpResponse {
@@ -152,22 +150,13 @@ pub mod tests {
             let test_cases = vec![
                 (vec![("X-Forwarded-For", "203.0.113.195")], "203.0.113.195"),
                 (vec![("X-Real-IP", "203.0.113.196")], "203.0.113.196"),
+                (vec![("Forwarded", "for=192.0.2.60;proto=http;by=203.0.113.43")], "192.0.2.60"),
                 (
-                    vec![("Forwarded", "for=192.0.2.60;proto=http;by=203.0.113.43")],
-                    "192.0.2.60",
-                ),
-                (
-                    vec![
-                        ("X-Forwarded-For", "203.0.113.195"),
-                        ("X-Real-IP", "203.0.113.196"),
-                    ],
+                    vec![("X-Forwarded-For", "203.0.113.195"), ("X-Real-IP", "203.0.113.196")],
                     "203.0.113.195", // X-Forwarded-For takes precedence
                 ),
                 (
-                    vec![
-                        ("Forwarded", "for=192.0.2.60"),
-                        ("X-Forwarded-For", "203.0.113.195"),
-                    ],
+                    vec![("Forwarded", "for=192.0.2.60"), ("X-Forwarded-For", "203.0.113.195")],
                     "192.0.2.60", // Forwarded header takes precedence
                 ),
             ];
@@ -181,10 +170,8 @@ pub mod tests {
 
         #[actix_web::test]
         async fn test_extract_request_info() {
-            let req = create_test_request(vec![
-                ("User-Agent", "test-agent"),
-                ("Host", "localhost:8080"),
-            ]);
+            let req =
+                create_test_request(vec![("User-Agent", "test-agent"), ("Host", "localhost:8080")]);
 
             let info = ActixExtractor::extract_request_info(&req);
 
@@ -199,9 +186,7 @@ pub mod tests {
 
         #[actix_web::test]
         async fn test_empty_body_handling() {
-            let res = HttpResponse::Ok()
-                .content_type("application/json")
-                .body(Bytes::new());
+            let res = HttpResponse::Ok().content_type("application/json").body(Bytes::new());
 
             let resp = ServiceResponse::new(test::TestRequest::default().to_http_request(), res);
 
@@ -216,9 +201,7 @@ pub mod tests {
 
             let resp = ServiceResponse::new(
                 req,
-                HttpResponse::BadRequest()
-                    .content_type("application/json")
-                    .body("invalid json"),
+                HttpResponse::BadRequest().content_type("application/json").body("invalid json"),
             );
 
             let info = ActixExtractor::extract_response_info(&resp, Duration::from_secs(1));
@@ -229,14 +212,11 @@ pub mod tests {
         async fn test_extract_response_info() {
             let json_body = json!({"result": "success"});
             let req = test::TestRequest::default().to_http_request();
-            req.extensions_mut()
-                .insert(Bytes::from(json_body.to_string()));
+            req.extensions_mut().insert(Bytes::from(json_body.to_string()));
 
             let resp = ServiceResponse::new(
                 req,
-                HttpResponse::Ok()
-                    .content_type("application/json")
-                    .body(json_body.to_string()),
+                HttpResponse::Ok().content_type("application/json").body(json_body.to_string()),
             );
 
             let info = ActixExtractor::extract_response_info(&resp, Duration::from_secs(1));
@@ -279,9 +259,7 @@ pub mod tests {
 
                 let resp = ServiceResponse::new(
                     req,
-                    HttpResponse::Ok()
-                        .content_type("application/json")
-                        .body(body_string.clone()),
+                    HttpResponse::Ok().content_type("application/json").body(body_string.clone()),
                 );
 
                 let info = ActixExtractor::extract_response_info(&resp, Duration::from_secs(1));
@@ -311,8 +289,7 @@ pub mod tests {
             });
 
             let req = test::TestRequest::default().to_http_request();
-            req.extensions_mut()
-                .insert(Bytes::from(error_body.to_string()));
+            req.extensions_mut().insert(Bytes::from(error_body.to_string()));
 
             let resp = ServiceResponse::new(
                 req,
@@ -350,17 +327,12 @@ pub mod tests {
                     json!("Unexpected server error"),
                     "Unexpected server error",
                 ),
-                (
-                    StatusCode::BAD_REQUEST,
-                    json!({"custom": "format"}),
-                    "{\"custom\":\"format\"}",
-                ),
+                (StatusCode::BAD_REQUEST, json!({"custom": "format"}), "{\"custom\":\"format\"}"),
             ];
 
             for (status, error_body, expected_message) in test_cases {
                 let req = test::TestRequest::default().to_http_request();
-                req.extensions_mut()
-                    .insert(Bytes::from(error_body.to_string()));
+                req.extensions_mut().insert(Bytes::from(error_body.to_string()));
 
                 let resp = ServiceResponse::new(
                     req,
@@ -475,9 +447,7 @@ pub mod tests {
 
             for (payload, fields_to_check) in test_cases {
                 let mut config = setup_test_config();
-                config
-                    .core
-                    .add_masked_fields(vec!["number".to_string(), "cvv".to_string()]);
+                config.core.add_masked_fields(vec!["number".to_string(), "cvv".to_string()]);
 
                 let app = test::init_service(
                     App::new()
@@ -496,8 +466,7 @@ pub mod tests {
                     .to_srv_request();
 
                 // Add the body to the request extensions for the middleware to process
-                req.extensions_mut()
-                    .insert(Bytes::from(payload_bytes.clone()));
+                req.extensions_mut().insert(Bytes::from(payload_bytes.clone()));
 
                 let treblle_payload =
                     PayloadBuilder::build_request_payload::<ActixExtractor>(&req, &config.core);
@@ -579,8 +548,7 @@ pub mod tests {
                 .to_srv_request();
 
             // Add body to request extensions for middleware processing
-            req.extensions_mut()
-                .insert(Bytes::from(payload_bytes.clone()));
+            req.extensions_mut().insert(Bytes::from(payload_bytes.clone()));
 
             let treblle_payload =
                 PayloadBuilder::build_request_payload::<ActixExtractor>(&req, &config.core);
@@ -588,18 +556,9 @@ pub mod tests {
             // Verify masking in Treblle payload
             if let Some(body) = treblle_payload.data.request.body {
                 assert_eq!(body["user"]["email"].as_str().unwrap(), "test@example.com");
-                assert_eq!(
-                    body["user"]["credit_card"]["number"].as_str().unwrap(),
-                    "*****"
-                );
-                assert_eq!(
-                    body["user"]["credit_card"]["expiry"].as_str().unwrap(),
-                    "12/24"
-                );
-                assert_eq!(
-                    body["user"]["credit_card"]["cvv"].as_str().unwrap(),
-                    "*****"
-                );
+                assert_eq!(body["user"]["credit_card"]["number"].as_str().unwrap(), "*****");
+                assert_eq!(body["user"]["credit_card"]["expiry"].as_str().unwrap(), "12/24");
+                assert_eq!(body["user"]["credit_card"]["cvv"].as_str().unwrap(), "*****");
                 assert_eq!(
                     body["user"]["shipping_address"]["street"].as_str().unwrap(),
                     "123 Main St"
@@ -722,8 +681,7 @@ pub mod tests {
             });
 
             let req = test::TestRequest::default().to_srv_request();
-            req.extensions_mut()
-                .insert(Bytes::from(test_data.to_string()));
+            req.extensions_mut().insert(Bytes::from(test_data.to_string()));
 
             let treblle_payload =
                 PayloadBuilder::build_request_payload::<ActixExtractor>(&req, &config.core);

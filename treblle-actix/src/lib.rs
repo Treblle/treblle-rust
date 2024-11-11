@@ -20,9 +20,7 @@ pub struct Treblle {
 impl Treblle {
     /// Create a new Treblle instance with the given configuration
     pub fn new(api_key: String, project_id: String) -> Self {
-        Treblle {
-            config: ActixConfig::new(api_key, project_id),
-        }
+        Treblle { config: ActixConfig::new(api_key, project_id) }
     }
 
     /// Add additional fields to mask

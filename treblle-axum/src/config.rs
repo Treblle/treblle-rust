@@ -10,9 +10,7 @@ pub struct AxumConfig {
 
 impl AxumConfig {
     pub fn new(api_key: String, project_id: String) -> Self {
-        AxumConfig {
-            core: CoreConfig::new(api_key, project_id),
-        }
+        AxumConfig { core: CoreConfig::new(api_key, project_id) }
     }
 
     pub fn add_masked_fields(&mut self, fields: Vec<String>) -> &mut Self {
@@ -28,9 +26,7 @@ impl AxumConfig {
 
 impl Default for AxumConfig {
     fn default() -> Self {
-        AxumConfig {
-            core: CoreConfig::default(),
-        }
+        AxumConfig { core: CoreConfig::default() }
     }
 }
 

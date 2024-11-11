@@ -1,9 +1,9 @@
 use std::collections::VecDeque;
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
-use std::sync::Arc;
 
 use lazy_static::lazy_static;
 use rustls::{ClientConfig, ClientConnection, RootCertStore, ServerName, StreamOwned};
@@ -13,9 +13,9 @@ use wasmedge_wasi_socket::TcpStream;
 
 use treblle_core::error::{Result, TreblleError};
 
-use crate::host_functions::host_log;
-use crate::constants::log_level;
 use crate::certs::load_root_certs;
+use crate::constants::log_level;
+use crate::host_functions::host_log;
 
 /// Timeout duration for connection attempts
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(5);
@@ -113,7 +113,10 @@ impl WasiHttpClient {
         let mut pool = match self.connection_pool.lock() {
             Ok(guard) => guard,
             Err(e) => {
-                host_log(log_level::ERROR, &format!("Failed to acquire lock for connection pool: {}", e));
+                host_log(
+                    log_level::ERROR,
+                    &format!("Failed to acquire lock for connection pool: {}", e),
+                );
                 return;
             }
         };
