@@ -2,13 +2,15 @@ use serde::{Deserialize, Serialize};
 use treblle_core::Config as CoreConfig;
 use crate::constants::log_level;
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[cfg_attr(not(target_arch = "wasm32"), derive(Clone, Debug, Serialize, Deserialize))]
 pub struct WasmConfig {
     #[serde(flatten)]
     pub core: CoreConfig,
     #[serde(default)]
     pub buffer_response: bool,
+    #[cfg(target_arch = "wasm32")]
     pub root_ca_path: Option<String>,
+    #[cfg(target_arch = "wasm32")]
     #[serde(default = "default_log_level")]
     pub log_level: i32,
 }
@@ -22,7 +24,9 @@ impl WasmConfig {
         WasmConfig {
             core,
             buffer_response: false,
+            #[cfg(target_arch = "wasm32")]
             root_ca_path: None,
+            #[cfg(target_arch = "wasm32")]
             log_level: default_log_level(),
         }
     }
@@ -40,7 +44,9 @@ impl Default for WasmConfig {
         WasmConfig {
             core: CoreConfig::default(),
             buffer_response: false,
+            #[cfg(target_arch = "wasm32")]
             root_ca_path: None,
+            #[cfg(target_arch = "wasm32")]
             log_level: default_log_level(),
         }
     }

@@ -91,7 +91,6 @@ pub mod defaults {
 
     /// Default regex patterns for route ignoring
     pub const DEFAULT_IGNORED_ROUTES_REGEX: &str = r"(?xi)
-        # Case-insensitive and free-spacing mode for readability
         ^/?(
             # Common monitoring and health endpoints
             (health|alive|ready)/(check|status|ping) |

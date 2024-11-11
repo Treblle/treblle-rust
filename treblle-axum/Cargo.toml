@@ -27,6 +27,9 @@
     serde = { workspace = true }
     serde_json = { workspace = true }
     bytes = "1.0"
+    time = { version = "0.3.36", features = ["local-offset"] }
+    local-ip-address = "0.6.3"
+    os_info = "3.7"
 
 
 [dev-dependencies]

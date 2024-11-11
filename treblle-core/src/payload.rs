@@ -13,6 +13,7 @@ pub trait HttpExtractor {
     fn extract_request_info(req: &Self::Request) -> RequestInfo;
     fn extract_response_info(res: &Self::Response, duration: Duration) -> ResponseInfo;
     fn extract_error_info(res: &Self::Response) -> Option<Vec<ErrorInfo>>;
+    fn get_server_info() -> ServerInfo;
 }
 
 pub struct PayloadBuilder;

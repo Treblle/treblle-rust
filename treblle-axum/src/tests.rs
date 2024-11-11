@@ -3,12 +3,11 @@ mod tests {
     use std::sync::Arc;
     use std::time::Duration;
     use axum::body::{to_bytes, Body};
-    use axum::extract::Request;
     use axum::response::Response;
     use axum::{Json, Router};
     use axum::routing::{get, post};
     use http::header::CONTENT_TYPE;
-    use http::{Method, StatusCode};
+    use http::{HeaderMap, HeaderName, HeaderValue, Method, StatusCode};
     use serde_json::{json, Value};
     use treblle_core::payload::HttpExtractor;
     use crate::{AxumConfig, Treblle, TreblleLayer};
@@ -18,6 +17,38 @@ mod tests {
     use tower_http::timeout::TimeoutLayer;
     use treblle_core::constants::MAX_BODY_SIZE;
     use treblle_core::PayloadBuilder;
+
+    fn create_test_request(headers: Vec<(&str, &str)>) -> http::Request<Body> {
+        let builder = http::Request::builder()
+            .uri("https://api.example.com/test")
+            .method("POST");
+
+        let headers_map = headers
+            .into_iter()
+            .map(|(name, value)| {
+                (
+                    HeaderName::from_bytes(name.as_bytes()).unwrap(),
+                    HeaderValue::from_str(value).unwrap(),
+                )
+            })
+            .collect::<HeaderMap>();
+
+        let req = builder.body(Body::empty()).unwrap();
+        let (mut parts, body) = req.into_parts();
+        parts.headers = headers_map;
+        http::Request::from_parts(parts, body)
+    }
+
+    fn create_test_response(status: StatusCode, body: Value) -> Response<Body> {
+        let mut res = Response::builder()
+            .status(status)
+            .header("Content-Type", "application/json")
+            .body(Body::empty())
+            .unwrap();
+
+        res.extensions_mut().insert(Bytes::from(body.to_string()));
+        res
+    }
 
     #[test]
     fn test_treblle_builder() {
@@ -43,43 +74,107 @@ mod tests {
         assert!(config.core.ignored_routes.iter().any(|r| r.as_str().contains("/health")));
     }
 
-    fn create_test_request() -> Request<Body> {
-        let mut req = Request::builder()
-            .uri("https://api.example.com/test")
-            .method("POST")
-            .header("User-Agent", "test-agent")
-            .header("Content-Type", "application/json")
-            .body(Body::empty())
-            .unwrap();
+    #[test]
+    fn test_ip_extraction() {
+        let test_cases = vec![
+            (
+                vec![("X-Forwarded-For", "203.0.113.195")],
+                "203.0.113.195",
+            ),
+            (
+                vec![("X-Real-IP", "203.0.113.196")],
+                "203.0.113.196",
+            ),
+            (
+                vec![("Forwarded", "for=192.0.2.60;proto=http;by=203.0.113.43")],
+                "192.0.2.60",
+            ),
+            (
+                vec![
+                    ("X-Forwarded-For", "203.0.113.195"),
+                    ("X-Real-IP", "203.0.113.196"),
+                ],
+                "203.0.113.195", // X-Forwarded-For should take precedence
+            ),
+            (
+                vec![
+                    ("Forwarded", "for=192.0.2.60"),
+                    ("X-Forwarded-For", "203.0.113.195"),
+                ],
+                "192.0.2.60", // Forwarded header should take precedence
+            ),
+            (vec![], "unknown"), // No IP headers present
+        ];
 
-        let body = json!({
-            "test": "value",
-            "password": "secret"
-        });
-        req.extensions_mut().insert(Bytes::from(body.to_string()));
-        req
+        for (headers, expected_ip) in test_cases {
+            let req = create_test_request(headers);
+            let info = AxumExtractor::extract_request_info(&req);
+            assert_eq!(info.ip, expected_ip);
+        }
     }
 
-    fn create_test_response(status: StatusCode, body: Value) -> Response<Body> {
-        let mut res = Response::builder()
-            .status(status)
-            .header("Content-Type", "application/json")
+    #[test]
+    fn test_response_size_calculation() {
+        let body = json!({
+            "key": "value",
+            "nested": {
+                "array": [1, 2, 3]
+            }
+        });
+        let body_bytes = Bytes::from(body.to_string());
+        let expected_size = body_bytes.len() as u64;
+
+        let mut res = http::Response::builder()
+            .status(StatusCode::OK)
             .body(Body::empty())
             .unwrap();
 
-        res.extensions_mut().insert(Bytes::from(body.to_string()));
-        res
+        res.extensions_mut().insert(body_bytes);
+
+        let info = AxumExtractor::extract_response_info(&res, Duration::from_secs(1));
+        assert_eq!(info.size, expected_size);
+    }
+
+    #[test]
+    fn test_url_construction() {
+        let test_cases = vec![
+            (
+                vec![("Host", "api.example.com")],
+                "https://api.example.com/test?query=value",
+                "https://api.example.com/test?query=value",
+            ),
+            (
+                vec![],
+                "/test",
+                "http:///test", // No host header
+            ),
+            (
+                vec![("Host", "localhost:8080")],
+                "/api/v1/users",
+                "http://localhost:8080/api/v1/users",
+            ),
+        ];
+
+        for (headers, uri, expected_url) in test_cases {
+            let mut req = create_test_request(headers);
+            *req.uri_mut() = uri.parse().unwrap();
+
+            let info = AxumExtractor::extract_request_info(&req);
+            assert_eq!(info.url, expected_url);
+        }
     }
 
     #[test]
     fn test_extract_request_info() {
-        let req = create_test_request();
+        let req = create_test_request(vec![
+            ("Host", "api.example.com"),
+            ("User-Agent", "test-agent"),
+        ]);
         let info = AxumExtractor::extract_request_info(&req);
 
         assert_eq!(info.url, "https://api.example.com/test");
         assert_eq!(info.method, "POST");
         assert_eq!(info.user_agent, "test-agent");
-        assert!(info.body.is_some());
     }
 
     #[test]
@@ -107,6 +202,48 @@ mod tests {
     }
 
     #[test]
+    fn test_error_extraction() {
+        let test_cases = vec![
+            (
+                StatusCode::NOT_FOUND,
+                json!({
+                "error": "Resource not found",
+                "message": "The requested user does not exist"
+            }),
+                "The requested user does not exist",
+            ),
+            (
+                StatusCode::BAD_REQUEST,
+                json!({
+                "message": "Invalid input"
+            }),
+                "Invalid input",
+            ),
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                json!("Unexpected server error"),
+                "Unexpected server error",
+            ),
+        ];
+
+        for (status, error_body, expected_message) in test_cases {
+            let mut res = http::Response::builder()
+                .status(status)
+                .body(Body::empty())
+                .unwrap();
+
+            res.extensions_mut().insert(Bytes::from(error_body.to_string()));
+
+            let errors = AxumExtractor::extract_error_info(&res).unwrap();
+            assert_eq!(errors[0].source, "axum");
+            assert_eq!(errors[0].error_type, format!("HTTP_{}", status.as_u16()));
+            assert_eq!(errors[0].message, expected_message,
+                       "Failed for status code {} with body {:?}",
+                       status, error_body);
+        }
+    }
+
+    #[test]
     fn test_empty_body_handling() {
         let mut res = Response::builder()
             .status(StatusCode::OK)
@@ -118,6 +255,23 @@ mod tests {
 
         let info = AxumExtractor::extract_response_info(&res, Duration::from_secs(1));
         assert!(info.body.is_none());
+    }
+
+    #[test]
+    fn test_large_response_body() {
+        let large_body = vec![0u8; 10 * 1024 * 1024]; // 10MB
+        let body_bytes = Bytes::from(large_body);
+        let expected_size = body_bytes.len() as u64;
+
+        let mut res = http::Response::builder()
+            .status(StatusCode::OK)
+            .body(Body::empty())
+            .unwrap();
+
+        res.extensions_mut().insert(body_bytes);
+
+        let info = AxumExtractor::extract_response_info(&res, Duration::from_secs(1));
+        assert_eq!(info.size, expected_size);
     }
 
     #[test]

@@ -23,7 +23,7 @@ pub struct PayloadData {
 }
 
 /// Represents server information.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct ServerInfo {
     pub ip: String,
     pub timezone: String,
@@ -38,7 +38,7 @@ pub struct ServerInfo {
 }
 
 /// Represents operating system information.
-#[derive(Debug, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct OsInfo {
     pub name: String,
     pub release: String,
