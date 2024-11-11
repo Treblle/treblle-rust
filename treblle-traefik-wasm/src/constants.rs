@@ -13,6 +13,8 @@ pub mod log_level {
 pub mod http {
     pub const REQUEST_KIND: u32 = 0;
     pub const RESPONSE_KIND: u32 = 1;
+    pub const MAX_RETRIES: usize = 3;
+    pub const MAX_POOL_SIZE: usize = 10;
 }
 
 #[cfg(test)]
