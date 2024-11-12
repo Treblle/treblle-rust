@@ -19,21 +19,16 @@ pub struct Treblle {
 }
 
 impl Treblle {
-    /// Create a new Treblle instance with API key and project ID
-    pub fn new(api_key: String, project_id: String) -> Self {
-        Treblle { config: RocketConfig::new(api_key, project_id) }
+    /// Create a new Treblle instance with the API key and default configuration
+    pub fn new(api_key: String) -> Self {
+        let config = RocketConfig::builder().api_key(api_key).build().unwrap();
+
+        Treblle { config }
     }
 
-    /// Add fields to mask in the request/response data
-    pub fn add_masked_fields(mut self, fields: Vec<String>) -> Self {
-        self.config.add_masked_fields(fields);
-        self
-    }
-
-    /// Add routes to ignore (will not be monitored)
-    pub fn add_ignored_routes(mut self, routes: Vec<String>) -> Self {
-        self.config.add_ignored_routes(routes);
-        self
+    /// Create a new Treblle instance from configuration
+    pub fn from_config(config: RocketConfig) -> Self {
+        Treblle { config }
     }
 
     /// Create the Treblle fairing for Rocket
@@ -44,11 +39,11 @@ impl Treblle {
 
 /// Extension trait for Rocket to easily attach Treblle
 pub trait TreblleExt {
-    fn attach_treblle(self, api_key: String, project_id: String) -> Self;
+    fn attach_treblle(self, api_key: String) -> Self;
 }
 
 impl TreblleExt for rocket::Rocket<rocket::Build> {
-    fn attach_treblle(self, api_key: String, project_id: String) -> Self {
-        self.attach(Treblle::new(api_key, project_id).fairing()).manage(TreblleState::default())
+    fn attach_treblle(self, api_key: String) -> Self {
+        self.attach(Treblle::new(api_key).fairing()).manage(TreblleState::default())
     }
 }

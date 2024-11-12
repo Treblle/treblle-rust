@@ -14,7 +14,7 @@
     workspace = true
 
 [dependencies]
-    treblle-core = { workspace = true }
+    treblle-core = { workspace = true, default-features = true }
     axum         = { version = "0.7", features = ["http1"] }
 
     bytes            = "1.0"

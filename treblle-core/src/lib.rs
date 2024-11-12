@@ -17,10 +17,7 @@ pub mod http_client;
 #[cfg(feature = "http_client")]
 pub use http_client::TreblleClient;
 
-#[cfg(all(feature = "http_client", feature = "wasm"))]
-compile_error!("features `http_client` and `wasm` are mutually exclusive");
-
-pub use config::Config;
+pub use config::{Config, ConfigBuilder};
 pub use error::{Result, TreblleError};
 pub use payload::PayloadBuilder;
 pub use schema::{ErrorInfo, LanguageInfo, RequestInfo, ResponseInfo, ServerInfo};

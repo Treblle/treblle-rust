@@ -198,7 +198,9 @@ mod tests {
 
     #[test]
     fn test_build_request_payload_with_sensitive_data() {
-        let config = Config::new("test_key".to_string(), "test_project".to_string());
+        let config =
+            Config::builder().api_key("test_key").project_id("test_project").build().unwrap();
+
         let payload = PayloadBuilder::build_request_payload::<MockExtractor>(&(), &config);
 
         assert_eq!(payload.api_key, "test_key");
@@ -209,7 +211,9 @@ mod tests {
 
     #[test]
     fn test_build_response_payload_success() {
-        let config = Config::new("test_key".to_string(), "test_project".to_string());
+        let config =
+            Config::builder().api_key("test_key").project_id("test_project").build().unwrap();
+
         let response = MockResponse {
             status_code: 200,
             body: Some(json!({"result": "success"})),
@@ -228,7 +232,9 @@ mod tests {
 
     #[test]
     fn test_build_response_payload_with_http_error() {
-        let config = Config::new("test_key".to_string(), "test_project".to_string());
+        let config =
+            Config::builder().api_key("test_key").project_id("test_project").build().unwrap();
+
         let response = MockResponse {
             status_code: 404,
             body: Some(json!({
@@ -252,7 +258,9 @@ mod tests {
 
     #[test]
     fn test_build_response_payload_with_framework_error() {
-        let config = Config::new("test_key".to_string(), "test_project".to_string());
+        let config =
+            Config::builder().api_key("test_key").project_id("test_project").build().unwrap();
+
         let response = MockResponse {
             status_code: 500,
             body: Some(json!({"status": "error"})),
@@ -278,7 +286,8 @@ mod tests {
 
     #[test]
     fn test_build_response_payload_with_sensitive_data() {
-        let config = Config::new("test_key".to_string(), "test_project".to_string());
+        let config =
+            Config::builder().api_key("test_key").project_id("test_project").build().unwrap();
 
         let response = MockResponse {
             status_code: 200,

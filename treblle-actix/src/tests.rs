@@ -58,15 +58,20 @@ pub mod tests {
         }
 
         pub fn setup_test_config() -> ActixConfig {
-            let mut config = ActixConfig::new("test_key".to_string(), "test_project".to_string());
-            config.core.add_masked_fields(vec![
-                "password".to_string(),
-                "Password".to_string(),
-                "user_password".to_string(),
-                "credit_card".to_string(),
-                "cvv".to_string(),
-                "ssn".to_string(),
-            ]);
+            let config = ActixConfig::builder()
+                .api_key("test_key")
+                .project_id("test_project")
+                .add_masked_fields(vec![
+                    "password".to_string(),
+                    "Password".to_string(),
+                    "user_password".to_string(),
+                    "credit_card".to_string(),
+                    "cvv".to_string(),
+                    "ssn".to_string(),
+                ])
+                .build()
+                .unwrap();
+
             config
         }
 
@@ -354,8 +359,13 @@ pub mod tests {
 
         #[actix_web::test]
         async fn test_actix_config() {
-            let config = ActixConfig::new("test_key".to_string(), "test_project".to_string())
-                .buffer_response(true);
+            let config = ActixConfig::builder()
+                .api_key("test_key")
+                .project_id("test_project")
+                .buffer_response(true)
+                .build()
+                .unwrap();
+
             assert_eq!(config.core.api_key, "test_key");
             assert_eq!(config.core.project_id, "test_project");
             assert!(config.buffer_response);
@@ -363,18 +373,15 @@ pub mod tests {
 
         #[actix_web::test]
         async fn test_treblle_builder() {
-            let treblle = Treblle::new("api_key".to_string(), "project_id".to_string())
-                .add_masked_fields(vec!["custom_field".to_string()])
-                .add_ignored_routes(vec!["/health".to_string()]);
+            let treblle = Treblle::new("api_key".to_string());
 
             assert_eq!(treblle.config.core.api_key, "api_key");
-            assert_eq!(treblle.config.core.project_id, "project_id");
             assert!(treblle
                 .config
                 .core
                 .masked_fields
                 .iter()
-                .any(|r| r.as_str().contains("custom_field")));
+                .any(|r| r.as_str().contains("password")));
             assert!(treblle
                 .config
                 .core
@@ -385,7 +392,11 @@ pub mod tests {
 
         #[actix_web::test]
         async fn test_treblle_config_extraction() {
-            let config = ActixConfig::new("test_key".to_string(), "test_project".to_string());
+            let config = ActixConfig::builder()
+                .api_key("test_key")
+                .project_id("test_project")
+                .build()
+                .unwrap();
 
             let app = test::init_service(
                 App::new()
@@ -446,8 +457,12 @@ pub mod tests {
             ];
 
             for (payload, fields_to_check) in test_cases {
-                let mut config = setup_test_config();
-                config.core.add_masked_fields(vec!["number".to_string(), "cvv".to_string()]);
+                let config = ActixConfig::builder()
+                    .api_key("test_key")
+                    .project_id("test_project")
+                    .add_masked_fields(vec!["number".to_string(), "cvv".to_string()])
+                    .build()
+                    .unwrap();
 
                 let app = test::init_service(
                     App::new()
@@ -524,11 +539,12 @@ pub mod tests {
                 }
             });
 
-            let mut config = ActixConfig::new("test_key".to_string(), "test_project".to_string());
-
-            config
-                .core
+            let config = ActixConfig::builder()
+                .api_key("test_key")
+                .project_id("test_project")
                 .add_masked_fields_regex(vec![r"(?i)number$".to_string(), r"(?i)^cvv$".to_string()])
+                .unwrap()
+                .build()
                 .unwrap();
 
             let app = test::init_service(
@@ -641,8 +657,12 @@ pub mod tests {
 
         #[actix_web::test]
         async fn test_middleware_respects_ignored_routes() {
-            let mut config = setup_test_config();
-            config.core.add_ignored_routes(vec!["/ignored".to_string()]);
+            let config = ActixConfig::builder()
+                .api_key("test_key")
+                .project_id("test_project")
+                .add_ignored_routes(vec!["/ignored".to_string()])
+                .build()
+                .unwrap();
 
             let app = test::init_service(
                 App::new()
@@ -672,8 +692,12 @@ pub mod tests {
 
         #[actix_web::test]
         async fn test_treblle_payload_creation() {
-            let mut config = setup_test_config();
-            config.core.add_masked_fields(vec!["password".to_string()]);
+            let config = ActixConfig::builder()
+                .api_key("test_key")
+                .project_id("test_project")
+                .add_masked_fields(vec!["password".to_string()])
+                .build()
+                .unwrap();
 
             let test_data = json!({
                 "username": "test_user",

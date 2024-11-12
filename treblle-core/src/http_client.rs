@@ -2,7 +2,7 @@ use crate::constants::http::REQUEST_TIMEOUT;
 use crate::error::{Result as TreblleResult, TreblleError};
 use crate::schema::TrebllePayload;
 use crate::Config;
-use reqwest::Client;
+use reqwest::{Client, ClientBuilder};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
 // First, implement From<reqwest::Error> for TreblleError
@@ -11,7 +11,7 @@ impl From<reqwest::Error> for TreblleError {
         if err.is_timeout() {
             TreblleError::Timeout
         } else if err.is_connect() {
-            TreblleError::Http(format!("Connection error: {}", err))
+            TreblleError::Http(format!("Connection error: {err}"))
         } else {
             TreblleError::Http(err.to_string())
         }
@@ -26,11 +26,10 @@ pub struct TreblleClient {
 
 impl TreblleClient {
     pub fn new(config: Config) -> TreblleResult<Self> {
-        let client = Client::builder()
+        let client = ClientBuilder::new()
             .timeout(REQUEST_TIMEOUT)
             .build()
-            .map_err(|e| TreblleError::Http(format!("Failed to create HTTP client: {}", e)))?;
-
+            .map_err(|e| TreblleError::Http(format!("Failed to create HTTP client: {e}")))?;
         Ok(Self { client, config, current_url_index: AtomicUsize::new(0) })
     }
 
@@ -67,7 +66,9 @@ mod tests {
 
     #[tokio::test]
     async fn test_client_rotation() {
-        let config = Config::new("test_key".to_string(), "test_project".to_string());
+        let config =
+            Config::builder().api_key("test_key").project_id("test_project").build().unwrap();
+
         let client = TreblleClient::new(config).unwrap();
 
         // Test URL rotation
@@ -86,8 +87,12 @@ mod tests {
         let mock_server = MockServer::start().await;
 
         // Create a test config with our mock server URL
-        let mut config = Config::new("test_key".to_string(), "test_project".to_string());
-        config.api_urls = vec![mock_server.uri()];
+        let config = Config::builder()
+            .api_key("test_key")
+            .project_id("test_project")
+            .set_api_urls(vec![mock_server.uri()])
+            .build()
+            .unwrap();
 
         // Set up the mock response
         Mock::given(method("POST"))
@@ -97,8 +102,15 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = TreblleClient::new(config).unwrap();
-        let payload = TrebllePayload::new("test_key".to_string(), "test_project".to_string());
+        let client = TreblleClient::new(config.clone()).unwrap();
+
+        let payload = TrebllePayload {
+            api_key: config.api_key,
+            project_id: config.project_id,
+            version: 0.1,
+            sdk: format!("treblle-rust-{}", env!("CARGO_PKG_VERSION")),
+            data: Default::default(),
+        };
 
         // Send the payload
         let result = client.send_to_treblle(payload).await;
@@ -110,8 +122,13 @@ mod tests {
         // Start a mock server that delays response
         let mock_server = MockServer::start().await;
 
-        let mut config = Config::new("test_key".to_string(), "test_project".to_string());
-        config.api_urls = vec![mock_server.uri()];
+        // Create config with mock server URL
+        let config = Config::builder()
+            .api_key("test_key")
+            .project_id("test_project")
+            .set_api_urls(vec![mock_server.uri()])
+            .build()
+            .unwrap();
 
         // Set up a mock that delays longer than our timeout
         Mock::given(method("POST"))
@@ -121,8 +138,15 @@ mod tests {
             .mount(&mock_server)
             .await;
 
-        let client = TreblleClient::new(config).unwrap();
-        let payload = TrebllePayload::new("test_key".to_string(), "test_project".to_string());
+        let client = TreblleClient::new(config.clone()).unwrap();
+
+        let payload = TrebllePayload {
+            api_key: config.api_key,
+            project_id: config.project_id,
+            version: 0.1,
+            sdk: format!("treblle-rust-{}", env!("CARGO_PKG_VERSION")),
+            data: Default::default(),
+        };
 
         let result = client.send_to_treblle(payload).await;
         assert!(matches!(result.unwrap_err(), TreblleError::Timeout));

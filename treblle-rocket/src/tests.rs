@@ -45,7 +45,7 @@ pub mod tests {
 
         pub fn setup_test_rocket() -> rocket::Rocket<rocket::Build> {
             rocket::build()
-                .attach(Treblle::new("test_key".to_string(), "test_project".to_string()).fairing())
+                .attach(Treblle::new("test_key".to_string()).fairing())
                 .manage(TreblleState::default())
         }
     }
@@ -55,9 +55,13 @@ pub mod tests {
 
         #[test]
         fn test_rocket_config() {
-            let mut config = RocketConfig::new("test_key".to_string(), "test_project".to_string());
-            config.add_masked_fields(vec!["password".to_string()]);
-            config.add_ignored_routes(vec!["/health".to_string()]);
+            let config = RocketConfig::builder()
+                .api_key("test_key")
+                .project_id("test_project")
+                .add_masked_fields(vec!["password".to_string()])
+                .add_ignored_routes(vec!["/health".to_string()])
+                .build()
+                .unwrap();
 
             assert_eq!(config.core.api_key, "test_key");
             assert_eq!(config.core.project_id, "test_project");
@@ -115,8 +119,7 @@ pub mod tests {
         fn test_masks_sensitive_data() {
             let rocket = rocket::build()
                 .attach(
-                    Treblle::new("test_key".to_string(), "test_project".to_string())
-                        .add_masked_fields(vec!["password".to_string(), "secret".to_string()])
+                    Treblle::new("test_key".to_string())
                         .fairing(),
                 )
                 .manage(TreblleState::default())
@@ -154,10 +157,15 @@ pub mod tests {
 
         #[test]
         fn test_ignores_specified_routes() {
+            let config = RocketConfig::builder()
+                .api_key("test_key")
+                .add_ignored_routes(vec!["/ignored.*".to_string()])
+                .build()
+                .unwrap();
+            
             let rocket = rocket::build()
                 .attach(
-                    Treblle::new("test_key".to_string(), "test_project".to_string())
-                        .add_ignored_routes(vec!["/ignored.*".to_string()])
+                    Treblle::from_config(config)
                         .fairing(),
                 )
                 .manage(TreblleState::default())

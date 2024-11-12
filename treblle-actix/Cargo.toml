@@ -14,7 +14,7 @@
     workspace = true
 
 [dependencies]
-    treblle-core = { workspace = true }
+    treblle-core = { workspace = true, default-features = true }
     actix-http   = "3.9"
     actix-web    = { version = "4.9.0", features = ["macros"] }
 

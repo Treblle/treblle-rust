@@ -8,7 +8,6 @@ mod tests;
 use actix_web::{dev::Payload, web};
 use actix_web::{Error, FromRequest, HttpRequest};
 use std::future::{ready, Ready};
-
 pub use config::ActixConfig;
 pub use middleware::TreblleMiddleware;
 
@@ -18,23 +17,16 @@ pub struct Treblle {
 }
 
 impl Treblle {
-    /// Create a new Treblle instance with the given configuration
-    pub fn new(api_key: String, project_id: String) -> Self {
-        Treblle { config: ActixConfig::new(api_key, project_id) }
-    }
+    /// Create a new Treblle instance with the API key and default configuration
+    pub fn new(api_key: String) -> Self {
+        let config = ActixConfig::builder()
+            .api_key(api_key)
+            .build()
+            .expect("Failed to create Treblle configuration");
 
-    /// Add additional fields to mask
-    pub fn add_masked_fields(mut self, fields: Vec<String>) -> Self {
-        self.config.core.add_masked_fields(fields);
-        self
+        Treblle { config }
     }
-
-    /// Add routes to ignore
-    pub fn add_ignored_routes(mut self, routes: Vec<String>) -> Self {
-        self.config.core.add_ignored_routes(routes);
-        self
-    }
-
+    
     /// Create the Treblle middleware
     pub fn middleware(self) -> TreblleMiddleware {
         TreblleMiddleware::new(self.config)

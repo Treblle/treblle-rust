@@ -105,12 +105,12 @@ mod tests {
     use serde_json::json;
 
     pub fn test_field_masking(field: &str) -> bool {
-        let config = Config::default();
+        let config = Config::builder().api_key("test_api_key").build().unwrap();
         config.should_mask_field(field)
     }
 
     pub fn test_route_ignoring(route: &str) -> bool {
-        let config = Config::default();
+        let config = Config::builder().api_key("test_api_key").build().unwrap();
         config.should_ignore_route(route)
     }
 

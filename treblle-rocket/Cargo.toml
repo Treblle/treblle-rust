@@ -14,7 +14,7 @@
     workspace = true
 
 [dependencies]
-    treblle-core = { workspace = true }
+    treblle-core = { workspace = true, default-features = true }
     rocket       = { version = "0.5", features = ["json"] }
 
     chrono           = { workspace = true }

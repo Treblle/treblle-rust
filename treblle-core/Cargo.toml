@@ -16,16 +16,19 @@
 [features]
     default     = ["http_client"]
     http_client = ["reqwest", "tokio"]
-    wasm        = []
+    wasm        = ["rustls"]
 
 [dependencies]
-    serde      = { workspace = true }
+    serde = { workspace = true }
     serde_json = { workspace = true }
-    chrono     = { version = "0.4", features = ["serde"] }
-    regex      = "1.5"
-    thiserror  = "1.0"
-    http       = "1.1.0"
-    rustls     = "0.23.14"
+    chrono = { version = "0.4", features = ["serde"] }
+    regex = "1.5"
+    thiserror = "1.0"
+    http = "1.1.0"
+    rustls = { version = "0.21", default-features = false, features = [
+        "dangerous_configuration",
+        "tls12",
+    ], optional = true }
 
     # Optional dependencies based on features
     reqwest = { version = "0.12.8", features = ["json"], optional = true }
@@ -33,3 +36,8 @@
 
 [dev-dependencies]
     wiremock = "0.6.2"
+
+[target.'cfg(all(target_arch = "wasm32", target_os = "unknown"))'.dependencies]
+    ring = { version = "0.17.8", default-features = false, features = [
+        "less-safe-getrandom-custom-or-rdrand",
+    ] }

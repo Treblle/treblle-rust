@@ -14,27 +14,25 @@ pub use middleware::{treblle_middleware, TreblleLayer};
 /// Treblle service for Axum
 #[derive(Clone)]
 pub struct Treblle {
-    config: AxumConfig,
+    config: Arc<AxumConfig>,
 }
 
 impl Treblle {
-    /// Create a new Treblle instance with the given configuration
-    pub fn new(api_key: String, project_id: String) -> Self {
-        Treblle { config: AxumConfig::new(api_key, project_id) }
+    /// Create a new Treblle instance with the API key and default configuration
+    pub fn new(api_key: impl Into<String>) -> Self {
+        let config = AxumConfig::builder()
+            .api_key(api_key)
+            .build()
+            .expect("Failed to create Treblle configuration");
+
+        Treblle { config: Arc::new(config) }
     }
 
-    /// Add additional fields to mask
-    pub fn add_masked_fields(mut self, fields: Vec<String>) -> Self {
-        self.config.core.add_masked_fields(fields);
-        self
+    /// Create a new Treblle instance from configuration
+    pub fn from_config(config: AxumConfig) -> Self {
+        Treblle { config: Arc::new(config) }
     }
-
-    /// Add routes to ignore
-    pub fn add_ignored_routes(mut self, routes: Vec<String>) -> Self {
-        self.config.core.add_ignored_routes(routes);
-        self
-    }
-
+    
     /// Create the Treblle middleware layer
     pub fn layer(self) -> TreblleLayer {
         TreblleLayer::new(self.config)
@@ -51,7 +49,8 @@ where
     S: Clone + Send + Sync + 'static,
 {
     fn treblle(self, treblle: Treblle) -> Self {
-        let layer = treblle.layer();
-        self.layer(from_fn_with_state(Arc::new(layer), treblle_middleware))
+        let layer = TreblleLayer::new(treblle.config);
+        let layer = Arc::new(layer);
+        self.layer(from_fn_with_state(layer, treblle_middleware))
     }
 }

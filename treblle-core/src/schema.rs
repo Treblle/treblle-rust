@@ -88,16 +88,6 @@ pub struct ErrorInfo {
 }
 
 impl TrebllePayload {
-    pub fn new(api_key: String, project_id: String) -> Self {
-        TrebllePayload {
-            api_key,
-            project_id,
-            version: 0.1,
-            sdk: format!("rust-core-{}", env!("CARGO_PKG_VERSION")),
-            data: PayloadData::default(),
-        }
-    }
-
     pub fn to_json(&self) -> crate::Result<String> {
         serde_json::to_string(&self).map_err(Into::into)
     }
@@ -108,17 +98,15 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_treblle_payload_new() {
-        let payload = TrebllePayload::new("test_key".to_string(), "test_project".to_string());
-        assert_eq!(payload.api_key, "test_key");
-        assert_eq!(payload.project_id, "test_project");
-        assert_eq!(payload.version, 0.1);
-        assert!(payload.sdk.starts_with("rust-core-"));
-    }
-
-    #[test]
     fn test_serialize_deserialize() {
-        let payload = TrebllePayload::new("test_key".to_string(), "test_project".to_string());
+        let payload = TrebllePayload {
+            api_key: "test_key".to_string(),
+            project_id: "test_project".to_string(),
+            version: 0.0,
+            sdk: "".to_string(),
+            data: Default::default(),
+        };
+
         let serialized = serde_json::to_string(&payload).unwrap();
         let deserialized: TrebllePayload = serde_json::from_str(&serialized).unwrap();
         assert_eq!(payload.api_key, deserialized.api_key);

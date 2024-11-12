@@ -30,16 +30,22 @@
 
 
     [workspace.dependencies]
-        treblle-core       = { path = "treblle-core" }
-        chrono             = "0.4.38"
-        http               = "1.1.0"
-        local-ip-address   = "0.6.3"
-        os_info            = "3.7"
-        serde              = { version = "1.0.213", features = ["derive"] }
-        serde_json         = "1.0.132"
-        time               = { version = "0.3.36", features = ["local-offset"] }
-        tokio              = { version = "1.41", features = ["full"] }
-        tracing            = "0.1"
+        treblle-core = { path = "treblle-core", default-features = false }
+        chrono = { version = "0.4.38", default-features = false, features = [
+            "clock",
+        ] }
+        http = "1.1.0"
+        local-ip-address = "0.6.3"
+        os_info = "3.7"
+        serde = { version = "1.0.213", default-features = false, features = [
+            "derive",
+        ] }
+        serde_json = { version = "1.0.132", default-features = false, features = [
+            "std",
+        ] }
+        time = { version = "0.3.36", features = ["local-offset"] }
+        tokio = { version = "1.41", features = ["full"] }
+        tracing = "0.1"
         tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
     [workspace.lints.rust]
