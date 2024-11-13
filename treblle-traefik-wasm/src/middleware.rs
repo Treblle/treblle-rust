@@ -1,183 +1,139 @@
 use std::time::Instant;
+use treblle_core::{extractors::TreblleExtractor, PayloadBuilder};
 
-use treblle_core::extractors::TreblleExtractor;
-use treblle_core::PayloadBuilder;
-
+use crate::constants::http::{REQUEST_KIND, RESPONSE_KIND};
 use crate::{
-    constants::http::{REQUEST_KIND, RESPONSE_KIND},
     extractors::WasmExtractor,
-    host_functions::{host_enable_features, host_read_body, host_write_body},
+    host_functions::host_get_header_values,
     logger::{log, LogLevel},
-    wasi_http_client::WasiHttpClient,
     CONFIG, HTTP_CLIENT,
 };
-
-const FEATURE_BUFFER_RESPONSE: u32 = 2;
 
 /// WASM middleware for Traefik that sends API analytics to Treblle
 pub struct TreblleMiddleware;
 
 impl TreblleMiddleware {
-    /// Initialize the middleware with configuration
-    pub fn init() {
-        log(LogLevel::Debug, "Starting Treblle middleware initialization");
-
-        // Initialize HTTP client
-        let http_client = std::sync::Arc::new(WasiHttpClient::new(
-            CONFIG.core.api_urls.clone(),
-            CONFIG.max_retries,
-            CONFIG.max_pool_size,
-            CONFIG.root_ca_path.clone(),
-        ));
-
-        // Store HTTP client in global state
-        if let Err(_) = HTTP_CLIENT.set(http_client) {
-            log(LogLevel::Error, "Failed to store HTTP client in global state");
-            return;
-        }
-
-        // Enable response buffering if configured
-        if CONFIG.buffer_response {
-            let features = host_enable_features(FEATURE_BUFFER_RESPONSE);
-            if features & FEATURE_BUFFER_RESPONSE != 0 {
-                log(LogLevel::Debug, "Response buffering enabled");
-            } else {
-                log(LogLevel::Error, "Failed to enable response buffering");
-            }
-        }
-
-        log(LogLevel::Info, "Treblle middleware initialized successfully with:");
-        log(LogLevel::Debug, &format!("  API Key: {}", CONFIG.core.api_key));
-        log(LogLevel::Debug, &format!("  Project ID: {}", CONFIG.core.project_id));
-        log(LogLevel::Debug, &format!("  API URLs: {:?}", CONFIG.core.api_urls));
-        log(LogLevel::Debug, &format!("  Buffer Response: {}", CONFIG.buffer_response));
-        log(LogLevel::Debug, &format!("  Log Level: {:?}", CONFIG.log_level));
+    /// Check if the request/response should be processed
+    fn should_process(kind: u32) -> bool {
+        let result = host_get_header_values(kind, "content-type")
+            .map(|ct| {
+                let is_json = ct.to_lowercase().contains("application/json");
+                log(LogLevel::Debug, &format!("Content-Type: {}, is_json: {}", ct, is_json));
+                is_json
+            })
+            .unwrap_or_else(|e| {
+                log(LogLevel::Error, &format!("Failed to get Content-Type header: {}", e));
+                false
+            });
+        result
     }
 
     /// Process an incoming HTTP request
     pub fn handle_request() -> i64 {
-        let start_time = Instant::now();
+        log(LogLevel::Debug, "Starting request processing");
 
-        if let Err(e) = Self::process_request(start_time) {
-            log(LogLevel::Error, &format!("Error processing request: {}", e));
+        // Check if we should process this request
+        if !Self::should_process(REQUEST_KIND) {
+            log(LogLevel::Debug, "Not a JSON request, skipping processing");
+            return 1;
         }
 
-        // Always continue processing the request
+        log(LogLevel::Debug, "Request is JSON, proceeding with processing");
+
+        // Extract request data and check routing
+        let request_payload =
+            PayloadBuilder::build_request_payload::<WasmExtractor>(&(), &CONFIG.core);
+        log(
+            LogLevel::Debug,
+            &format!("Extracted request payload for URL: {}", request_payload.data.request.url),
+        );
+
+        // Check if route should be ignored
+        if CONFIG.core.should_ignore_route(&request_payload.data.request.url) {
+            log(LogLevel::Debug, &format!("Ignoring route: {}", request_payload.data.request.url));
+            return 1;
+        }
+
+        // Send to Treblle using static HTTP client
+        match serde_json::to_vec(&request_payload) {
+            Ok(payload_json) => {
+                log(
+                    LogLevel::Debug,
+                    &format!(
+                        "Sending request payload of size {} bytes to Treblle",
+                        payload_json.len()
+                    ),
+                );
+                if let Err(e) = HTTP_CLIENT.send(&payload_json, &CONFIG.core.api_key) {
+                    log(LogLevel::Error, &format!("Failed to send request data to Treblle: {}", e));
+                } else {
+                    log(LogLevel::Debug, "Successfully sent request data to Treblle");
+                }
+            }
+            Err(e) => log(LogLevel::Error, &format!("Failed to serialize request payload: {}", e)),
+        }
+
         1
     }
 
     /// Process an HTTP response
-    pub fn handle_response(req_ctx: i32, is_error: i32) {
+    pub fn handle_response(_req_ctx: i32, is_error: i32) {
+        log(LogLevel::Debug, "Starting response processing");
+
         if !CONFIG.buffer_response {
-            log(LogLevel::Debug, "Response processing disabled");
+            log(LogLevel::Debug, "Response buffering disabled");
             return;
         }
 
-        if let Err(e) = Self::process_response(req_ctx, is_error) {
-            log(LogLevel::Error, &format!("Error processing response: {}", e));
-        }
-    }
-
-    fn process_request(_start_time: Instant) -> treblle_core::Result<()> {
-        // Read raw body first
-        match host_read_body(REQUEST_KIND) {
-            Ok(body) => {
-                WasmExtractor::store_request_body(body.clone());
-                if let Err(e) = host_write_body(REQUEST_KIND, &body) {
-                    log(LogLevel::Error, &format!("Failed to write back request body: {}", e));
-                }
-            }
-            Err(e) => {
-                log(LogLevel::Error, &format!("Failed to read request body: {}", e));
-            }
+        // Check if we should process this response
+        if !Self::should_process(RESPONSE_KIND) {
+            log(LogLevel::Debug, "Not a JSON response, skipping processing");
+            return;
         }
 
-        // Extract request data
-        let payload = PayloadBuilder::build_request_payload::<WasmExtractor>(&(), &CONFIG.core);
+        log(
+            LogLevel::Debug,
+            "Response is JSON and buffering is enabled, proceeding with processing",
+        );
 
-        // Check if route should be ignored
-        if CONFIG.core.should_ignore_route(&payload.data.request.url) {
-            log(LogLevel::Debug, &format!("Ignoring route: {}", payload.data.request.url));
-            return Ok(());
-        }
-
-        // Send data to Treblle API
-        if let Some(client) = HTTP_CLIENT.get() {
-            if let Ok(payload_json) = serde_json::to_vec(&payload) {
-                if let Err(e) = client.send(&payload_json, &CONFIG.core.api_key) {
-                    log(LogLevel::Error, &format!("Failed to send request data to Treblle: {}", e));
-                }
-            }
-        }
-
-        Ok(())
-    }
-
-    fn process_response(_req_ctx: i32, is_error: i32) -> treblle_core::Result<()> {
         let start_time = Instant::now();
 
-        // Read raw body
-        match host_read_body(RESPONSE_KIND) {
-            Ok(body) => {
-                WasmExtractor::store_response_body(body.clone());
-                if let Err(e) = host_write_body(RESPONSE_KIND, &body) {
-                    log(LogLevel::Error, &format!("Failed to write back response body: {}", e));
-                }
-            }
-            Err(e) => {
-                log(LogLevel::Error, &format!("Failed to read response body: {}", e));
-            }
-        }
-
         // Extract response data
-        let mut payload = PayloadBuilder::build_response_payload::<WasmExtractor>(
+        let mut response_payload = PayloadBuilder::build_response_payload::<WasmExtractor>(
             &(),
             &CONFIG.core,
             start_time.elapsed(),
         );
+        log(
+            LogLevel::Debug,
+            &format!("Extracted response payload for URL: {}", response_payload.data.request.url),
+        );
 
         // Add error information if needed
-        if is_error != 0 || payload.data.response.code >= 400 {
+        if is_error != 0 || response_payload.data.response.code >= 400 {
             if let Some(errors) = WasmExtractor::extract_error_info(&()) {
-                payload.data.errors.extend(errors);
+                response_payload.data.errors.extend(errors);
             }
         }
 
-        // Send data to Treblle API
-        if let Some(client) = HTTP_CLIENT.get() {
-            if let Ok(payload_json) = serde_json::to_vec(&payload) {
-                if let Err(e) = client.send(&payload_json, &CONFIG.core.api_key) {
-                    log(
-                        LogLevel::Error,
-                        &format!("Failed to send response data to Treblle: {}", e),
-                    );
+        // Send to Treblle using static HTTP client
+        match serde_json::to_vec(&response_payload) {
+            Ok(payload_json) => {
+                log(
+                    LogLevel::Debug,
+                    &format!(
+                        "Sending response payload of size {} bytes to Treblle",
+                        payload_json.len()
+                    ),
+                );
+                if let Err(e) = HTTP_CLIENT.send(&payload_json, &CONFIG.core.api_key) {
+                    log(LogLevel::Error, &format!("Failed to send response data to Treblle: {}", e));
+                } else {
+                    log(LogLevel::Debug, "Successfully sent response data to Treblle");
                 }
             }
+            Err(e) => log(LogLevel::Error, &format!("Failed to serialize response payload: {}", e)),
         }
-
-        Ok(())
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::config::WasmConfig;
-    use treblle_core::Config as CoreConfig;
-
-    #[test]
-    fn test_middleware_initialization() {
-        // Initialize globals
-        let http_client = std::sync::Arc::new(WasiHttpClient::new(
-            vec!["https://api.treblle.com".to_string()],
-            3,
-            10,
-            None,
-        ));
-
-        HTTP_CLIENT.set(http_client).unwrap();
-
-        // Verify HTTP client is set
-        assert!(HTTP_CLIENT.get().is_some());
+        
     }
 }

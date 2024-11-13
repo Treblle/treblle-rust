@@ -17,62 +17,64 @@ pub mod wasi_http_client;
 
 use std::sync::Arc;
 
-use bindings::exports::traefik::http_handler::handler::Guest;
 use once_cell::sync::Lazy;
-use once_cell::sync::OnceCell;
 
 use crate::config::WasmConfig;
 use crate::logger::{log, LogLevel};
 use crate::middleware::TreblleMiddleware;
 use crate::wasi_http_client::WasiHttpClient;
 
-// Global configuration and HTTP client
-pub static CONFIG: Lazy<WasmConfig> = Lazy::new(|| WasmConfig::builder().build().unwrap());
-pub static HTTP_CLIENT: OnceCell<Arc<WasiHttpClient>> = OnceCell::new();
+use bindings::exports::traefik::http_handler::handler::Guest;
 
-/// Implements the Traefik HTTP handler interface
+pub static CONFIG: Lazy<WasmConfig> = Lazy::new(|| {
+    WasmConfig::get_or_fallback().unwrap_or_else(|e| {
+        log(LogLevel::Error, &format!("Failed to get config from host, using defaults: {}", e));
+        WasmConfig::builder().api_key("default").build().expect("Failed to create default config")
+    })
+});
+
+// Initialize HTTP client statically
+pub static HTTP_CLIENT: Lazy<Arc<WasiHttpClient>> = Lazy::new(|| {
+    log(LogLevel::Debug, "Initializing HTTP client");
+
+    // Log the configuration being used
+    log(LogLevel::Debug, &format!("Using config: {:?}", &*CONFIG));
+
+    let client = WasiHttpClient::new(
+        CONFIG.core.api_urls.clone(),
+        CONFIG.max_retries,
+        CONFIG.max_pool_size,
+        CONFIG.root_ca_path.clone(),
+    );
+
+    log(LogLevel::Debug, "HTTP client initialized successfully");
+    Arc::new(client)
+});
+
+// Implement the Guest trait required by Traefik
 impl Guest for TreblleMiddleware {
-    /// Handle an incoming HTTP request
     fn handle_request() -> i64 {
-        // Initialize logging and force lazy statics
-        logger::init();
+        // Force initialization of our statics if not already done
         Lazy::force(&CONFIG);
+        Lazy::force(&HTTP_CLIENT);
 
-        log(LogLevel::Debug, "Handling request in WASM module");
-
-        if CONFIG.buffer_response {
-            let features = host_functions::host_enable_features(2); // Enable FeatureBufferResponse
-            log(LogLevel::Info, &format!("Enabled features: {features}"));
-        }
-
+        log(LogLevel::Debug, "Guest::handle_request called");
         TreblleMiddleware::handle_request()
     }
 
-    /// Handle an HTTP response
     fn handle_response(req_ctx: i32, is_error: i32) {
-        // Initialize logging
-        logger::init();
-
-        log(LogLevel::Debug, "Handling response in WASM module");
+        log(LogLevel::Debug, "Guest::handle_response called");
         TreblleMiddleware::handle_response(req_ctx, is_error);
-        log(LogLevel::Debug, "Finished processing response");
     }
 }
 
-#[no_mangle]
-pub extern "C" fn init() {
-    logger::init();
-    log(LogLevel::Debug, "Initializing Treblle middleware");
-    TreblleMiddleware::init();
-    log(LogLevel::Info, "Treblle middleware initialized");
-}
-
+// No-mangle functions required for WASM export
 #[no_mangle]
 pub extern "C" fn handle_request() -> i64 {
-    TreblleMiddleware::handle_request()
+    <TreblleMiddleware as Guest>::handle_request()
 }
 
 #[no_mangle]
 pub extern "C" fn handle_response(req_ctx: i32, is_error: i32) {
-    TreblleMiddleware::handle_response(req_ctx, is_error);
+    <TreblleMiddleware as Guest>::handle_response(req_ctx, is_error);
 }

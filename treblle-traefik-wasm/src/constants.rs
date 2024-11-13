@@ -15,6 +15,7 @@ pub mod http {
     pub const RESPONSE_KIND: u32 = 1;
     pub const MAX_RETRIES: usize = 3;
     pub const MAX_POOL_SIZE: usize = 10;
+    pub const FEATURE_BUFFER_RESPONSE: u32 = 2;
 }
 
 #[cfg(test)]

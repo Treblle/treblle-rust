@@ -1,6 +1,28 @@
 use crate::logger::{log, LogLevel};
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use treblle_core::{Config as CoreConfig, Result, TreblleError};
+
+/// Helper function to deserialize string-based booleans
+fn deserialize_bool<'de, D>(deserializer: D) -> std::result::Result<bool, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum BoolOrString {
+        Bool(bool),
+        String(String),
+    }
+
+    match BoolOrString::deserialize(deserializer)? {
+        BoolOrString::Bool(b) => Ok(b),
+        BoolOrString::String(s) => match s.to_lowercase().as_str() {
+            "true" | "yes" | "1" => Ok(true),
+            "false" | "no" | "0" => Ok(false),
+            _ => Err(serde::de::Error::custom(format!("invalid boolean value: {}", s))),
+        },
+    }
+}
 
 /// Configuration for the Treblle WASM middleware
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -12,6 +34,7 @@ pub struct WasmConfig {
 
     /// Controls response buffering for processing (optional)
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_bool")]
     pub(crate) buffer_response: bool,
 
     /// Optional path to custom root CA certificate
@@ -58,13 +81,7 @@ impl WasmConfig {
                     log(LogLevel::Error, &format!("Invalid configuration: {e}"));
                     Err(e)
                 } else {
-                    log(
-                        LogLevel::Info,
-                        &format!(
-                            "Successfully loaded and validated configuration with API key: {}",
-                            config.core.api_key,
-                        ),
-                    );
+                    log(LogLevel::Info, &format!("Successfully loaded and validated configuration {:?}", config));
                     Ok(config)
                 }
             }
@@ -377,6 +394,59 @@ mod tests {
         assert_eq!(config.log_level, LogLevel::Debug);
         assert_eq!(config.max_retries, 5);
         assert_eq!(config.max_pool_size, 20);
+    }
+
+    #[test]
+    fn test_bool_deserialization() {
+        // Test string "false"
+        let json = json!({
+        "apiKey": "test_key",
+        "bufferResponse": "false"
+    });
+        let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(!config.buffer_response);
+
+        // Test string "true"
+        let json = json!({
+        "apiKey": "test_key",
+        "bufferResponse": "true"
+    });
+        let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(config.buffer_response);
+
+        // Test boolean false
+        let json = json!({
+        "apiKey": "test_key",
+        "bufferResponse": false
+    });
+        let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(!config.buffer_response);
+
+        // Test boolean true
+        let json = json!({
+        "apiKey": "test_key",
+        "bufferResponse": true
+    });
+        let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(config.buffer_response);
+
+        // Test default (no value provided)
+        let json = json!({
+        "apiKey": "test_key"
+    });
+        let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(!config.buffer_response);
+    }
+
+    #[test]
+    fn test_invalid_bool_value() {
+        let json = json!({
+        "apiKey": "test_key",
+        "bufferResponse": "invalid"
+    });
+        let result = serde_json::from_value::<WasmConfig>(json);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("invalid boolean value"));
     }
 
     #[test]
