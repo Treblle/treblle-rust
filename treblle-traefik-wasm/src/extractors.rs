@@ -6,10 +6,13 @@ use std::time::Duration;
 use crate::{
     constants::http::{REQUEST_KIND, RESPONSE_KIND},
     host_functions::{
-        host_get_header_names, host_get_header_values, host_get_method, host_get_protocol_version,
-        host_get_status_code, host_get_uri, host_read_body, host_write_body,
+        body::{host_read_body, host_write_body},
+        headers::{host_get_header_names, host_get_header_values},
+        request::{host_get_method, host_get_protocol_version, host_get_uri},
+        response::host_get_status_code,
     },
     logger::{log, LogLevel},
+    CONFIG,
 };
 
 use treblle_core::{
@@ -34,11 +37,9 @@ fn clean_json_value(value: Value) -> Value {
             }
             Value::Object(new_map)
         }
-        Value::Array(arr) => {
-            Value::Array(arr.into_iter().map(clean_json_value).collect())
-        }
+        Value::Array(arr) => Value::Array(arr.into_iter().map(clean_json_value).collect()),
         Value::String(s) => Value::String(s),
-        _ => value
+        _ => value,
     }
 }
 
@@ -49,25 +50,44 @@ impl WasmExtractor {
 
         match host_read_body(kind) {
             Ok(body) => {
-                if body.is_empty() || body.len() > MAX_BODY_SIZE {
-                    log(LogLevel::Debug, "Body is empty or too large, skipping");
+                // Add debug logging for body size
+                log(LogLevel::Debug, &format!("Read body of size: {}", body.len()));
+
+                if body.is_empty() {
+                    log(LogLevel::Debug, "Body is empty, skipping");
                     return None;
                 }
 
-                // Write body back for next middleware
-                if let Err(e) = host_write_body(kind, &body) {
-                    log(LogLevel::Error, &format!("Failed to write back body: {e}"));
+                if body.len() > MAX_BODY_SIZE {
+                    log(
+                        LogLevel::Debug,
+                        &format!("Body size {} exceeds maximum {}", body.len(), MAX_BODY_SIZE),
+                    );
+                    return None;
+                }
+
+                // Write body back for next middleware if buffering is disabled
+                if !CONFIG.buffer_request {
+                    log(LogLevel::Debug, "Response buffering disabled, writing body back");
+                    if let Err(e) = host_write_body(kind, &body) {
+                        log(LogLevel::Error, &format!("Failed to write back body: {e}"));
+                    }
                 }
 
                 // Parse JSON and ensure proper handling of string values
                 match serde_json::from_slice(&body) {
                     Ok(json) => {
-                        log(LogLevel::Debug, "Successfully parsed body as JSON");
-                        // Clean up the Value to avoid String() wrapping
+                        log(LogLevel::Debug, &format!("Successfully parsed JSON body: {:?}", json));
                         Some(clean_json_value(json))
                     }
                     Err(e) => {
-                        log(LogLevel::Warn, &format!("Failed to parse JSON body: {e}"));
+                        log(
+                            LogLevel::Warn,
+                            &format!(
+                                "Failed to parse JSON body: {e}, raw body: {:?}",
+                                String::from_utf8_lossy(&body)
+                            ),
+                        );
                         None
                     }
                 }
@@ -78,7 +98,7 @@ impl WasmExtractor {
             }
         }
     }
-    
+
     /// Extract headers from WASM host
     fn extract_headers(kind: u32) -> HashMap<String, String> {
         log(LogLevel::Debug, &format!("Starting header extraction for kind: {kind}"));
@@ -171,7 +191,7 @@ impl treblle_core::extractors::TreblleExtractor for WasmExtractor {
 
         let body = Self::extract_body(RESPONSE_KIND);
         log(LogLevel::Debug, &format!("Extracted response body: {:?}", body));
-        
+
         let size = body.as_ref().map(|b| b.to_string().len() as u64).unwrap_or(0);
 
         let info = ResponseInfo {

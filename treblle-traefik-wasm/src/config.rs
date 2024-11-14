@@ -50,6 +50,11 @@ pub struct WasmConfig {
     #[serde(flatten)]
     pub(crate) core: CoreConfig,
 
+    /// Controls request buffering for processing (optional)
+    #[serde(default)]
+    #[serde(deserialize_with = "deserialize_bool")]
+    pub(crate) buffer_request: bool,
+
     /// Controls response buffering for processing (optional)
     #[serde(default)]
     #[serde(deserialize_with = "deserialize_bool")]
@@ -150,6 +155,11 @@ impl WasmConfig {
         self.log_level
     }
 
+    /// Get whether request buffering is enabled
+    pub fn buffer_request(&self) -> bool {
+        self.buffer_request
+    }
+
     /// Get whether response buffering is enabled
     pub fn buffer_response(&self) -> bool {
         self.buffer_response
@@ -174,6 +184,7 @@ impl WasmConfig {
 #[derive(Debug, Default)]
 pub struct WasmConfigBuilder {
     core_builder: treblle_core::ConfigBuilder,
+    buffer_request: Option<bool>,
     buffer_response: Option<bool>,
     root_ca_path: Option<String>,
     log_level: Option<LogLevel>,
@@ -196,6 +207,12 @@ impl WasmConfigBuilder {
     /// Set the project ID (optional)
     pub fn project_id<T: Into<String>>(mut self, id: T) -> Self {
         self.core_builder = self.core_builder.project_id(id);
+        self
+    }
+
+    /// Enable or disable request buffering (optional)
+    pub fn buffer_request(mut self, buffer: bool) -> Self {
+        self.buffer_response = Some(buffer);
         self
     }
 
@@ -317,6 +334,7 @@ impl WasmConfigBuilder {
     pub fn build(self) -> Result<WasmConfig> {
         Ok(WasmConfig {
             core: self.core_builder.build()?,
+            buffer_request: self.buffer_request.unwrap_or_default(),
             buffer_response: self.buffer_response.unwrap_or_default(),
             root_ca_path: self.root_ca_path,
             log_level: self.log_level.unwrap_or_default(),
@@ -339,6 +357,7 @@ mod tests {
         assert_eq!(config.max_retries, DEFAULT_MAX_RETRIES);
         assert_eq!(config.max_pool_size, DEFAULT_MAX_POOL_SIZE);
         assert_eq!(config.log_level, LogLevel::Info);
+        assert!(!config.buffer_request);
         assert!(!config.buffer_response);
         assert!(config.root_ca_path.is_none());
 
@@ -352,6 +371,7 @@ mod tests {
         let config = WasmConfig::builder()
             .api_key("test_key")
             .project_id("test_project")
+            .buffer_request(true)
             .buffer_response(true)
             .root_ca_path("/path/to/ca.pem")
             .log_level(LogLevel::Debug)
@@ -362,6 +382,7 @@ mod tests {
 
         assert_eq!(config.core.api_key, "test_key");
         assert_eq!(config.core.project_id, "test_project");
+        assert!(config.buffer_request);
         assert!(config.buffer_response);
         assert_eq!(config.root_ca_path, Some("/path/to/ca.pem".to_string()));
         assert_eq!(config.log_level, LogLevel::Debug);
@@ -374,6 +395,7 @@ mod tests {
         let json = json!({
             "apiKey": "test_key",
             "projectId": "test_project",
+            "bufferRequest": true,
             "bufferResponse": true,
             "rootCaPath": "/path/to/ca.pem",
             "logLevel": "debug",
@@ -387,6 +409,7 @@ mod tests {
         let config: WasmConfig = serde_json::from_value(json).unwrap();
         assert_eq!(config.core.api_key, "test_key");
         assert_eq!(config.core.project_id, "test_project");
+        assert!(config.buffer_request);
         assert!(config.buffer_response);
         assert_eq!(config.root_ca_path, Some("/path/to/ca.pem".to_string()));
         assert_eq!(config.log_level, LogLevel::Debug);
@@ -402,6 +425,7 @@ mod tests {
         let json = json!({
             "api_key": "test_key",
             "project_id": "test_project",
+            "buffer_request": true,
             "buffer_response": true,
             "root_ca_path": "/path/to/ca.pem",
             "log_level": "debug",
@@ -412,6 +436,7 @@ mod tests {
         let config: WasmConfig = serde_json::from_value(json).unwrap();
         assert_eq!(config.core.api_key, "test_key");
         assert_eq!(config.core.project_id, "test_project");
+        assert!(config.buffer_request);
         assert!(config.buffer_response);
         assert_eq!(config.root_ca_path, Some("/path/to/ca.pem".to_string()));
         assert_eq!(config.log_level, LogLevel::Debug);
@@ -424,33 +449,41 @@ mod tests {
         // Test string "false"
         let json = json!({
             "apiKey": "test_key",
+            "bufferRequest": "false",
             "bufferResponse": "false"
         });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(!config.buffer_request);
         assert!(!config.buffer_response);
 
         // Test string "true"
         let json = json!({
             "apiKey": "test_key",
+            "bufferRequest": "false",
             "bufferResponse": "true"
         });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(config.buffer_request);
         assert!(config.buffer_response);
 
         // Test boolean false
         let json = json!({
             "apiKey": "test_key",
+            "bufferRequest": false,
             "bufferResponse": false
         });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(!config.buffer_request);
         assert!(!config.buffer_response);
 
         // Test boolean true
         let json = json!({
             "apiKey": "test_key",
+            "bufferRequest": true,
             "bufferResponse": true
         });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(config.buffer_request);
         assert!(config.buffer_response);
 
         // Test default (no value provided)
@@ -458,6 +491,7 @@ mod tests {
             "apiKey": "test_key"
         });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
+        assert!(!config.buffer_request);
         assert!(!config.buffer_response);
     }
 
@@ -465,6 +499,7 @@ mod tests {
     fn test_invalid_bool_value() {
         let json = json!({
             "apiKey": "test_key",
+            "bufferRequest": "invalid",
             "bufferResponse": "invalid"
         });
         let result = serde_json::from_value::<WasmConfig>(json);

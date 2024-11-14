@@ -2,7 +2,7 @@ use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicI32, Ordering};
 
 use crate::constants::log_level;
-use crate::host_functions::host_log;
+use crate::host_functions::log::host_log;
 
 static LOG_LEVEL: AtomicI32 = AtomicI32::new(log_level::INFO);
 

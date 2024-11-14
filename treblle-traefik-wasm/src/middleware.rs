@@ -1,10 +1,12 @@
 use std::time::Instant;
 use treblle_core::{extractors::TreblleExtractor, PayloadBuilder};
 
+use crate::constants::host_features::{FEATURE_BUFFER_REQUEST, FEATURE_BUFFER_RESPONSE};
 use crate::constants::http::{REQUEST_KIND, RESPONSE_KIND};
 use crate::{
     extractors::WasmExtractor,
-    host_functions::host_get_header_values,
+    host_functions,
+    host_functions::headers::host_get_header_values,
     logger::{log, LogLevel},
     CONFIG, HTTP_CLIENT,
 };
@@ -31,6 +33,18 @@ impl TreblleMiddleware {
     pub fn handle_request() -> i64 {
         log(LogLevel::Debug, "Starting request processing");
         let start = Instant::now();
+
+        if CONFIG.buffer_request {
+            match host_functions::host_enable_features(FEATURE_BUFFER_REQUEST) {
+                Ok(features) => {
+                    log(LogLevel::Info, &format!("Enabled features: {features}"));
+                }
+                Err(e) => {
+                    log(LogLevel::Error, &format!("Failed to enable request buffering: {e}"));
+                    return 1;
+                }
+            }
+        }
 
         // Check if we should process this request
         if !Self::should_process(REQUEST_KIND) {
@@ -95,9 +109,16 @@ impl TreblleMiddleware {
         log(LogLevel::Debug, "Starting response processing");
         let start = Instant::now();
 
-        if !CONFIG.buffer_response {
-            log(LogLevel::Debug, "Response buffering disabled");
-            return;
+        if CONFIG.buffer_response {
+            match host_functions::host_enable_features(FEATURE_BUFFER_RESPONSE) {
+                Ok(features) => {
+                    log(LogLevel::Info, &format!("Enabled features: {features}"));
+                }
+                Err(e) => {
+                    log(LogLevel::Error, &format!("Failed to enable response buffering: {e}"));
+                    return;
+                }
+            }
         }
 
         // Check if we should process this response
