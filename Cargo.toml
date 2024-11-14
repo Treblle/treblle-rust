@@ -26,7 +26,9 @@
         license      = "MIT"
         repository   = "https://github.com/Treblle/treblle-rust"
         homepage     = "https://treblle.com/"
-        rust-version = "1.80.1"
+        rust-version = "1.82.0"
+        categories = ["api", "wasm", "asynchronous"]
+        keywords = ["middleware", "monitoring", "tracing", "api", "observability"]
 
 
     [workspace.dependencies]

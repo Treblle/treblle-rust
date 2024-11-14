@@ -1,19 +1,18 @@
 //! Treblle integration for Actix web framework.
 
 mod config;
-mod extractors;
+pub mod extractors;
 mod middleware;
-mod tests;
 
 use actix_web::{dev::Payload, web};
 use actix_web::{Error, FromRequest, HttpRequest};
-use std::future::{ready, Ready};
 pub use config::ActixConfig;
 pub use middleware::TreblleMiddleware;
+use std::future::{ready, Ready};
 
 /// Treblle service for Actix
 pub struct Treblle {
-    config: ActixConfig,
+    pub config: ActixConfig,
 }
 
 impl Treblle {
@@ -26,7 +25,7 @@ impl Treblle {
 
         Treblle { config }
     }
-    
+
     /// Create the Treblle middleware
     pub fn middleware(self) -> TreblleMiddleware {
         TreblleMiddleware::new(self.config)

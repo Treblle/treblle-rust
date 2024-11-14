@@ -32,6 +32,7 @@ pub enum TreblleError {
 
     /// Represents TLS-related errors.
     #[error("TLS error: {0}")]
+    #[cfg(feature = "wasm")]
     Tls(#[from] rustls::Error),
 
     /// Represents TCP-related errors.

@@ -3,14 +3,13 @@ use treblle_core::{Config as CoreConfig, Result};
 
 /// Configuration for the Treblle Actix middleware
 #[derive(Clone, Debug, Serialize, Deserialize)]
-#[serde(rename_all = "camelCase")]
 pub struct ActixConfig {
     #[serde(flatten)]
-    pub(crate) core: CoreConfig,
+    pub core: CoreConfig,
 
     /// Controls whether response body should be buffered
     #[serde(default)]
-    pub(crate) buffer_response: bool,
+    pub buffer_response: bool,
 }
 
 /// Builder for Actix middleware configuration
@@ -23,10 +22,7 @@ pub struct ActixConfigBuilder {
 impl ActixConfig {
     /// Create a new configuration builder
     pub fn builder() -> ActixConfigBuilder {
-        ActixConfigBuilder {
-            core_builder: CoreConfig::builder(),
-            buffer_response: false,
-        }
+        ActixConfigBuilder { core_builder: CoreConfig::builder(), buffer_response: false }
     }
 
     /// Get a reference to the core configuration
@@ -72,13 +68,19 @@ impl ActixConfigBuilder {
     }
 
     /// Add masked fields to the default set
-    pub fn add_masked_fields(mut self, fields: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn add_masked_fields(
+        mut self,
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         self.core_builder = self.core_builder.add_masked_fields(fields);
         self
     }
 
     /// Set masked fields, replacing the defaults
-    pub fn set_masked_fields(mut self, fields: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn set_masked_fields(
+        mut self,
+        fields: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         self.core_builder = self.core_builder.set_masked_fields(fields);
         self
     }
@@ -102,13 +104,19 @@ impl ActixConfigBuilder {
     }
 
     /// Add ignored routes to the default set
-    pub fn add_ignored_routes(mut self, routes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn add_ignored_routes(
+        mut self,
+        routes: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         self.core_builder = self.core_builder.add_ignored_routes(routes);
         self
     }
 
     /// Set ignored routes, replacing the defaults
-    pub fn set_ignored_routes(mut self, routes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn set_ignored_routes(
+        mut self,
+        routes: impl IntoIterator<Item = impl Into<String>>,
+    ) -> Self {
         self.core_builder = self.core_builder.set_ignored_routes(routes);
         self
     }
@@ -133,25 +141,18 @@ impl ActixConfigBuilder {
 
     /// Build the configuration
     pub fn build(self) -> Result<ActixConfig> {
-        Ok(ActixConfig {
-            core: self.core_builder.build()?,
-            buffer_response: self.buffer_response,
-        })
+        Ok(ActixConfig { core: self.core_builder.build()?, buffer_response: self.buffer_response })
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn test_builder_basic() {
-        let config = ActixConfig::builder()
-            .api_key("test_key")
-            .project_id("test_project")
-            .build()
-            .unwrap();
+        let config =
+            ActixConfig::builder().api_key("test_key").project_id("test_project").build().unwrap();
 
         assert_eq!(config.core.api_key, "test_key");
         assert_eq!(config.core.project_id, "test_project");
@@ -160,11 +161,8 @@ mod tests {
 
     #[test]
     fn test_buffer_response() {
-        let config = ActixConfig::builder()
-            .api_key("test_key")
-            .buffer_response(true)
-            .build()
-            .unwrap();
+        let config =
+            ActixConfig::builder().api_key("test_key").buffer_response(true).build().unwrap();
 
         assert!(config.buffer_response());
     }
@@ -240,26 +238,6 @@ mod tests {
         assert_eq!(deserialized.core.api_key, "test_key");
         assert_eq!(deserialized.core.project_id, "test_project");
         assert!(deserialized.buffer_response);
-    }
-
-    #[test]
-    fn test_camel_case_deserialization() {
-        let json = json!({
-            "apiKey": "test_key",
-            "projectId": "test_project",
-            "apiUrls": ["https://custom.api"],
-            "maskedFields": ["custom_field"],
-            "ignoredRoutes": ["/custom"],
-            "bufferResponse": true
-        });
-
-        let config: ActixConfig = serde_json::from_value(json).unwrap();
-        assert_eq!(config.core.api_key, "test_key");
-        assert_eq!(config.core.project_id, "test_project");
-        assert!(config.core.api_urls.contains(&"https://custom.api".to_string()));
-        assert!(config.core.should_mask_field("custom_field"));
-        assert!(config.core.should_ignore_route("/custom"));
-        assert!(config.buffer_response);
     }
 
     #[test]
