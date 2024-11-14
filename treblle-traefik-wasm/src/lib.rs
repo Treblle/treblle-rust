@@ -24,6 +24,7 @@ use crate::logger::{log, LogLevel};
 use crate::middleware::TreblleMiddleware;
 use crate::wasi_http_client::WasiHttpClient;
 
+use crate::constants::http::FEATURE_BUFFER_RESPONSE;
 use bindings::exports::traefik::http_handler::handler::Guest;
 
 pub static CONFIG: Lazy<WasmConfig> = Lazy::new(|| {
@@ -58,7 +59,7 @@ impl Guest for TreblleMiddleware {
         Lazy::force(&CONFIG);
         Lazy::force(&HTTP_CLIENT);
 
-        // Initialize logger with the configured level
+        // Initialize logger with the configured level, if not already initialized
         logger::init(CONFIG.log_level);
 
         log(LogLevel::Debug, "Guest::handle_request called");
@@ -66,7 +67,20 @@ impl Guest for TreblleMiddleware {
     }
 
     fn handle_response(req_ctx: i32, is_error: i32) {
+        // Force initialization of our statics if not already done
+        Lazy::force(&CONFIG);
+        Lazy::force(&HTTP_CLIENT);
+
+        // Initialize logger with the configured level, if not already initialized
+        logger::init(CONFIG.log_level);
+
         log(LogLevel::Debug, "Guest::handle_response called");
+
+        if CONFIG.buffer_response {
+            let features = host_functions::host_enable_features(FEATURE_BUFFER_RESPONSE);
+            log(LogLevel::Info, &format!("Enabled features: {features}"));
+        }
+
         TreblleMiddleware::handle_response(req_ctx, is_error);
     }
 }
