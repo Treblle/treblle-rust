@@ -35,62 +35,57 @@ impl ConfigBuilder {
     }
 
     /// Set the API key (required)
-    pub fn api_key(mut self, key: impl Into<String>) -> Self {
+    pub fn api_key<T: Into<String>>(mut self, key: T) -> Self {
         self.api_key = Some(key.into());
         self
     }
 
     /// Set the project ID (optional, defaults to empty string)
-    pub fn project_id(mut self, id: impl Into<String>) -> Self {
+    pub fn project_id<T: Into<String>>(mut self, id: T) -> Self {
         self.project_id = Some(id.into());
         self
     }
 
     /// Set custom API URLs (optional, uses default URLs if not set)
-    pub fn set_api_urls(mut self, urls: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn set_api_urls<T: Into<String>, I: IntoIterator<Item = T>>(mut self, urls: I) -> Self {
         self.api_urls = Some(urls.into_iter().map(Into::into).collect());
         self
     }
 
     /// Add additional API URLs to the default set
-    pub fn add_api_urls(mut self, urls: impl IntoIterator<Item = impl Into<String>>) -> Self {
-        match &mut self.api_urls {
-            Some(existing) => {
-                existing.extend(urls.into_iter().map(Into::into));
-            }
-            None => {
-                let mut defaults: Vec<_> = API_URLS.iter().map(ToString::to_string).collect();
-                defaults.extend(urls.into_iter().map(Into::into));
-                self.api_urls = Some(defaults);
-            }
+    pub fn add_api_urls<T: Into<String>, I: IntoIterator<Item = T>>(mut self, urls: I) -> Self {
+        if let Some(existing) = &mut self.api_urls {
+            existing.extend(urls.into_iter().map(Into::into));
+        } else {
+            let mut defaults: Vec<_> = API_URLS.iter().map(ToString::to_string).collect();
+            defaults.extend(urls.into_iter().map(Into::into));
+            self.api_urls = Some(defaults);
         }
         self
     }
 
     /// Add masked fields to the default set
-    pub fn add_masked_fields(
+    pub fn add_masked_fields<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        fields: impl IntoIterator<Item = impl Into<String>>,
+        fields: I,
     ) -> Self {
         let fields: HashSet<String> = fields.into_iter().map(Into::into).collect();
-        match &mut self.masked_fields {
-            Some(existing) => {
-                existing.extend(fields);
-            }
-            None => {
-                let mut defaults: HashSet<_> =
-                    DEFAULT_MASKED_FIELDS.iter().map(ToString::to_string).collect();
-                defaults.extend(fields);
-                self.masked_fields = Some(defaults);
-            }
+
+        if let Some(existing) = &mut self.masked_fields {
+            existing.extend(fields);
+        } else {
+            let mut defaults: HashSet<_> =
+                DEFAULT_MASKED_FIELDS.iter().map(ToString::to_string).collect();
+            defaults.extend(fields);
+            self.masked_fields = Some(defaults);
         }
         self
     }
 
     /// Set masked fields, replacing the defaults
-    pub fn set_masked_fields(
+    pub fn set_masked_fields<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        fields: impl IntoIterator<Item = impl Into<String>>,
+        fields: I,
     ) -> Self {
         let new_fields = fields.into_iter().map(Into::into).collect();
         self.masked_fields = Some(new_fields);
@@ -98,43 +93,40 @@ impl ConfigBuilder {
     }
 
     /// Add regex patterns for masked fields to the default set
-    pub fn add_masked_fields_regex(
+    pub fn add_masked_fields_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         let new_patterns: Result<Vec<Regex>> = patterns
             .into_iter()
             .map(|p| {
                 Regex::new(&p.into()).map_err(|e| {
-                    TreblleError::Config(format!("Invalid masked field regex pattern: {}", e))
+                    TreblleError::Config(format!("Invalid masked field regex pattern: {e}"))
                 })
             })
             .collect();
 
-        match &mut self.masked_fields_regex {
-            Some(existing) => {
-                existing.extend(new_patterns?);
-            }
-            None => {
-                let mut defaults = vec![Regex::new(DEFAULT_MASKED_FIELDS_REGEX)
-                    .expect("Default masked fields regex is invalid")];
-                defaults.extend(new_patterns?);
-                self.masked_fields_regex = Some(defaults);
-            }
+        if let Some(existing) = &mut self.masked_fields_regex {
+            existing.extend(new_patterns?);
+        } else {
+            let mut defaults = vec![Regex::new(DEFAULT_MASKED_FIELDS_REGEX)
+                .expect("Default masked fields regex is invalid")];
+            defaults.extend(new_patterns?);
+            self.masked_fields_regex = Some(defaults);
         }
         Ok(self)
     }
 
     /// Set regex patterns for masked fields, replacing the defaults
-    pub fn set_masked_fields_regex(
+    pub fn set_masked_fields_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         let compiled: Result<Vec<Regex>> = patterns
             .into_iter()
             .map(|p| {
                 Regex::new(&p.into()).map_err(|e| {
-                    TreblleError::Config(format!("Invalid masked field regex pattern: {}", e))
+                    TreblleError::Config(format!("Invalid masked field regex pattern: {e}"))
                 })
             })
             .collect();
@@ -143,29 +135,27 @@ impl ConfigBuilder {
     }
 
     /// Add ignored routes to the default set
-    pub fn add_ignored_routes(
+    pub fn add_ignored_routes<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        routes: impl IntoIterator<Item = impl Into<String>>,
+        routes: I,
     ) -> Self {
         let routes: HashSet<String> = routes.into_iter().map(Into::into).collect();
-        match &mut self.ignored_routes {
-            Some(existing) => {
-                existing.extend(routes);
-            }
-            None => {
-                let mut defaults: HashSet<_> =
-                    DEFAULT_IGNORED_ROUTES.iter().map(ToString::to_string).collect();
-                defaults.extend(routes);
-                self.ignored_routes = Some(defaults);
-            }
+
+        if let Some(existing) = &mut self.ignored_routes {
+            existing.extend(routes);
+        } else {
+            let mut defaults: HashSet<_> =
+                DEFAULT_IGNORED_ROUTES.iter().map(ToString::to_string).collect();
+            defaults.extend(routes);
+            self.ignored_routes = Some(defaults);
         }
         self
     }
 
     /// Set ignored routes, replacing the defaults
-    pub fn set_ignored_routes(
+    pub fn set_ignored_routes<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        routes: impl IntoIterator<Item = impl Into<String>>,
+        routes: I,
     ) -> Self {
         let new_routes = routes.into_iter().map(Into::into).collect();
         self.ignored_routes = Some(new_routes);
@@ -173,43 +163,40 @@ impl ConfigBuilder {
     }
 
     /// Add regex patterns for ignored routes to the default set
-    pub fn add_ignored_routes_regex(
+    pub fn add_ignored_routes_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         let new_patterns: Result<Vec<Regex>> = patterns
             .into_iter()
             .map(|p| {
                 Regex::new(&p.into()).map_err(|e| {
-                    TreblleError::Config(format!("Invalid ignored route regex pattern: {}", e))
+                    TreblleError::Config(format!("Invalid ignored route regex pattern: {e}"))
                 })
             })
             .collect();
 
-        match &mut self.ignored_routes_regex {
-            Some(existing) => {
-                existing.extend(new_patterns?);
-            }
-            None => {
-                let mut defaults = vec![Regex::new(DEFAULT_IGNORED_ROUTES_REGEX)
-                    .expect("Default ignored routes regex is invalid")];
-                defaults.extend(new_patterns?);
-                self.ignored_routes_regex = Some(defaults);
-            }
+        if let Some(existing) = &mut self.ignored_routes_regex {
+            existing.extend(new_patterns?);
+        } else {
+            let mut defaults = vec![Regex::new(DEFAULT_IGNORED_ROUTES_REGEX)
+                .expect("Default ignored routes regex is invalid")];
+            defaults.extend(new_patterns?);
+            self.ignored_routes_regex = Some(defaults);
         }
         Ok(self)
     }
 
     /// Set regex patterns for ignored routes, replacing the defaults
-    pub fn set_ignored_routes_regex(
+    pub fn set_ignored_routes_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         let compiled: Result<Vec<Regex>> = patterns
             .into_iter()
             .map(|p| {
                 Regex::new(&p.into()).map_err(|e| {
-                    TreblleError::Config(format!("Invalid ignored route regex pattern: {}", e))
+                    TreblleError::Config(format!("Invalid ignored route regex pattern: {e}"))
                 })
             })
             .collect();
@@ -224,12 +211,6 @@ impl ConfigBuilder {
 
         if api_key.is_empty() {
             return Err(TreblleError::Config("API key cannot be empty".into()));
-        }
-
-        // Debug prints
-        println!("Has masked_fields: {}", self.masked_fields.is_some());
-        if let Some(ref fields) = self.masked_fields {
-            println!("Masked fields: {:?}", fields);
         }
 
         Ok(Config {
@@ -324,7 +305,7 @@ impl Config {
 mod tests {
     use super::*;
     use serde_json::json;
-    
+
     #[test]
     fn test_builder_defaults() {
         let config = Config::builder().api_key("test_key").build().unwrap();

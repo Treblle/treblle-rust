@@ -1,7 +1,7 @@
 use http::header::HeaderMap;
 use regex::Regex;
 use serde_json::{Map, Value};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 /// Masks sensitive data in a JSON value based on both regex patterns and exact string matches.
 /// For primitive values, returns a clone.
@@ -39,12 +39,12 @@ pub fn mask_sensitive_data(
 }
 
 /// Converts a HashMap to a JSON Value for masking
-pub fn hashmap_to_json_value(map: &std::collections::HashMap<String, String>) -> Value {
+pub fn hashmap_to_json_value(map: &HashMap<String, String>) -> Value {
     Value::Object(map.iter().map(|(k, v)| (k.clone(), Value::String(v.clone()))).collect())
 }
 
 /// Converts a JSON Value back to a HashMap after masking
-pub fn json_value_to_hashmap(value: Value) -> std::collections::HashMap<String, String> {
+pub fn json_value_to_hashmap(value: Value) -> HashMap<String, String> {
     match value {
         Value::Object(map) => map
             .into_iter()
@@ -53,7 +53,7 @@ pub fn json_value_to_hashmap(value: Value) -> std::collections::HashMap<String, 
                 _ => None,
             })
             .collect(),
-        _ => std::collections::HashMap::new(),
+        _ => HashMap::new(),
     }
 }
 
@@ -215,7 +215,7 @@ mod tests {
 
     #[test]
     fn test_hashmap_conversion() {
-        let mut map = std::collections::HashMap::new();
+        let mut map = HashMap::new();
         map.insert("key1".to_string(), "value1".to_string());
         map.insert("password".to_string(), "secret".to_string());
 

@@ -114,7 +114,7 @@ async fn test_data_masking_patterns() {
         if let Some(body) = treblle_payload.data.request.body {
             for &field in &fields_to_check {
                 if let Some(value) = find_field_value(&body, field) {
-                    assert_eq!(value, "*****", "Field '{}' was not properly masked", field);
+                    assert_eq!(value, "*****", "Field '{field}' was not properly masked");
                 }
             }
         }
@@ -137,8 +137,7 @@ async fn test_data_masking_patterns() {
                 if let Some(response_value) = find_field_value(&body, field) {
                     assert_eq!(
                         original_value, response_value,
-                        "Field '{}' should not be masked in the response",
-                        field
+                        "Field '{field}' should not be masked in the response"
                     );
                 }
             }
@@ -238,11 +237,9 @@ async fn test_middleware_allows_non_json_requests() {
         ])
         .build()
         .unwrap();
-    
+
     let app = test::init_service(
-        App::new()
-            .wrap(TreblleMiddleware::new(config))
-            .route("/text", web::get().to(text_handler)),
+        App::new().wrap(TreblleMiddleware::new(config)).route("/text", web::get().to(text_handler)),
     )
     .await;
 
@@ -271,7 +268,7 @@ async fn test_middleware_preserves_original_data() {
         ])
         .build()
         .unwrap();
-    
+
     let app = test::init_service(
         App::new()
             .wrap(TreblleMiddleware::new(config))

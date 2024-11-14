@@ -44,7 +44,7 @@ impl ActixConfigBuilder {
     }
 
     /// Set the project ID (optional)
-    pub fn project_id(mut self, id: impl Into<String>) -> Self {
+    pub fn project_id<T: Into<String>>(mut self, id: T) -> Self {
         self.core_builder = self.core_builder.project_id(id);
         self
     }
@@ -56,84 +56,84 @@ impl ActixConfigBuilder {
     }
 
     /// Set custom API URLs (optional)
-    pub fn set_api_urls(mut self, urls: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn set_api_urls<T: Into<String>, I: IntoIterator<Item = T>>(mut self, urls: I) -> Self {
         self.core_builder = self.core_builder.set_api_urls(urls);
         self
     }
 
     /// Add additional API URLs to the default set
-    pub fn add_api_urls(mut self, urls: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn add_api_urls<T: Into<String>, I: IntoIterator<Item = T>>(mut self, urls: I) -> Self {
         self.core_builder = self.core_builder.add_api_urls(urls);
         self
     }
 
     /// Add masked fields to the default set
-    pub fn add_masked_fields(
+    pub fn add_masked_fields<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        fields: impl IntoIterator<Item = impl Into<String>>,
+        fields: I,
     ) -> Self {
         self.core_builder = self.core_builder.add_masked_fields(fields);
         self
     }
 
     /// Set masked fields, replacing the defaults
-    pub fn set_masked_fields(
+    pub fn set_masked_fields<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        fields: impl IntoIterator<Item = impl Into<String>>,
+        fields: I,
     ) -> Self {
         self.core_builder = self.core_builder.set_masked_fields(fields);
         self
     }
 
     /// Add regex patterns for masked fields to the default set
-    pub fn add_masked_fields_regex(
+    pub fn add_masked_fields_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.add_masked_fields_regex(patterns)?;
         Ok(self)
     }
 
     /// Set regex patterns for masked fields, replacing the defaults
-    pub fn set_masked_fields_regex(
+    pub fn set_masked_fields_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.set_masked_fields_regex(patterns)?;
         Ok(self)
     }
 
     /// Add ignored routes to the default set
-    pub fn add_ignored_routes(
+    pub fn add_ignored_routes<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        routes: impl IntoIterator<Item = impl Into<String>>,
+        routes: I,
     ) -> Self {
         self.core_builder = self.core_builder.add_ignored_routes(routes);
         self
     }
 
     /// Set ignored routes, replacing the defaults
-    pub fn set_ignored_routes(
+    pub fn set_ignored_routes<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        routes: impl IntoIterator<Item = impl Into<String>>,
+        routes: I,
     ) -> Self {
         self.core_builder = self.core_builder.set_ignored_routes(routes);
         self
     }
 
     /// Add regex patterns for ignored routes to the default set
-    pub fn add_ignored_routes_regex(
+    pub fn add_ignored_routes_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.add_ignored_routes_regex(patterns)?;
         Ok(self)
     }
 
     /// Set regex patterns for ignored routes, replacing the defaults
-    pub fn set_ignored_routes_regex(
+    pub fn set_ignored_routes_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.set_ignored_routes_regex(patterns)?;
         Ok(self)

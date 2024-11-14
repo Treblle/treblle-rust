@@ -27,7 +27,7 @@ pub type Response = ();
 impl WasmExtractor {
     /// Extract and process request/response body
     fn extract_body(kind: u32) -> Option<Value> {
-        log(LogLevel::Debug, &format!("Starting body extraction for kind: {}", kind));
+        log(LogLevel::Debug, &format!("Starting body extraction for kind: {kind}"));
 
         match host_read_body(kind) {
             Ok(body) => {
@@ -48,7 +48,7 @@ impl WasmExtractor {
 
                 // Write body back for next middleware
                 if let Err(e) = host_write_body(kind, &body) {
-                    log(LogLevel::Error, &format!("Failed to write back body: {}", e));
+                    log(LogLevel::Error, &format!("Failed to write back body: {e}"));
                 } else {
                     log(LogLevel::Debug, "Successfully wrote back body");
                 }
@@ -60,13 +60,13 @@ impl WasmExtractor {
                         Some(json)
                     }
                     Err(e) => {
-                        log(LogLevel::Warn, &format!("Failed to parse JSON body: {}", e));
+                        log(LogLevel::Warn, &format!("Failed to parse JSON body: {e}"));
                         None
                     }
                 }
             }
             Err(e) => {
-                log(LogLevel::Error, &format!("Failed to read body: {}", e));
+                log(LogLevel::Error, &format!("Failed to read body: {e}"));
                 None
             }
         }
@@ -74,7 +74,7 @@ impl WasmExtractor {
 
     /// Extract headers from WASM host
     fn extract_headers(kind: u32) -> HashMap<String, String> {
-        log(LogLevel::Debug, &format!("Starting header extraction for kind: {}", kind));
+        log(LogLevel::Debug, &format!("Starting header extraction for kind: {kind}"));
 
         match host_get_header_names(kind) {
             Ok(header_names) => {
@@ -85,19 +85,19 @@ impl WasmExtractor {
                 for name in names {
                     match host_get_header_values(kind, name) {
                         Ok(values) => {
-                            log(LogLevel::Debug, &format!("Header '{}' = '{}'", name, values));
+                            log(LogLevel::Debug, &format!("Header '{name}' = '{values}'"));
                             headers.insert(name.to_lowercase(), values);
                         }
                         Err(e) => log(
                             LogLevel::Error,
-                            &format!("Failed to get values for header '{}': {}", name, e),
+                            &format!("Failed to get values for header '{name}': {e}"),
                         ),
                     }
                 }
                 headers
             }
             Err(e) => {
-                log(LogLevel::Error, &format!("Failed to get header names: {}", e));
+                log(LogLevel::Error, &format!("Failed to get header names: {e}"));
                 HashMap::new()
             }
         }
@@ -112,12 +112,12 @@ impl treblle_core::extractors::TreblleExtractor for WasmExtractor {
         log(LogLevel::Debug, "Starting request info extraction");
 
         let method = host_get_method().unwrap_or_else(|e| {
-            log(LogLevel::Error, &format!("Failed to get method: {}", e));
+            log(LogLevel::Error, &format!("Failed to get method: {e}"));
             String::new()
         });
 
         let url = host_get_uri().unwrap_or_else(|e| {
-            log(LogLevel::Error, &format!("Failed to get URI: {}", e));
+            log(LogLevel::Error, &format!("Failed to get URI: {e}"));
             String::new()
         });
 
@@ -148,7 +148,7 @@ impl treblle_core::extractors::TreblleExtractor for WasmExtractor {
         };
 
         log(LogLevel::Debug, &format!("Completed request info extraction: {:?}", info));
-        
+
         info
     }
 
@@ -167,7 +167,7 @@ impl treblle_core::extractors::TreblleExtractor for WasmExtractor {
         };
 
         log(LogLevel::Debug, &format!("Completed response info extraction: {:?}", info));
-        
+
         info
     }
 
@@ -181,15 +181,15 @@ impl treblle_core::extractors::TreblleExtractor for WasmExtractor {
             let message = body
                 .and_then(|value| match value {
                     Value::Object(map) => {
-                        map.get("message").or_else(|| map.get("error")).map(|v| v.to_string())
+                        map.get("message").or_else(|| map.get("error")).map(ToString::to_string)
                     }
                     _ => Some(value.to_string()),
                 })
-                .unwrap_or_else(|| format!("HTTP error {}", status_code));
+                .unwrap_or_else(|| format!("HTTP error {status_code}"));
 
             Some(vec![ErrorInfo {
                 source: "wasm".to_string(),
-                error_type: format!("HTTP_{}", status_code),
+                error_type: format!("HTTP_{status_code}"),
                 message,
                 file: String::new(),
                 line: 0,

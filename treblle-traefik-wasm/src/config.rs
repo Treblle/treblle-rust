@@ -100,9 +100,10 @@ impl WasmConfig {
                     log(LogLevel::Error, &format!("Invalid configuration: {e}"));
                     Err(e)
                 } else {
+                    log(LogLevel::Info, "Successfully loaded and validated configuration");
                     log(
-                        LogLevel::Info,
-                        &format!("Successfully loaded and validated configuration {:?}", config),
+                        LogLevel::Debug,
+                        &format!("Loaded and validated configuration {:?}", config),
                     );
                     Ok(config)
                 }
@@ -187,13 +188,13 @@ impl WasmConfigBuilder {
     }
 
     /// Set the API key (required)
-    pub fn api_key(mut self, key: impl Into<String>) -> Self {
+    pub fn api_key<T: Into<String>>(mut self, key: T) -> Self {
         self.core_builder = self.core_builder.api_key(key);
         self
     }
 
     /// Set the project ID (optional)
-    pub fn project_id(mut self, id: impl Into<String>) -> Self {
+    pub fn project_id<T: Into<String>>(mut self, id: T) -> Self {
         self.core_builder = self.core_builder.project_id(id);
         self
     }
@@ -205,7 +206,7 @@ impl WasmConfigBuilder {
     }
 
     /// Set the root CA path (optional)
-    pub fn root_ca_path(mut self, path: impl Into<String>) -> Self {
+    pub fn root_ca_path<T: Into<String>>(mut self, path: T) -> Self {
         self.root_ca_path = Some(path.into());
         self
     }
@@ -229,84 +230,84 @@ impl WasmConfigBuilder {
     }
 
     /// Set custom API URLs (optional)
-    pub fn set_api_urls(mut self, urls: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn set_api_urls<T: Into<String>, I: IntoIterator<Item = T>>(mut self, urls: I) -> Self {
         self.core_builder = self.core_builder.set_api_urls(urls);
         self
     }
 
     /// Add additional API URLs (optional)
-    pub fn add_api_urls(mut self, urls: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn add_api_urls<T: Into<String>, I: IntoIterator<Item = T>>(mut self, urls: I) -> Self {
         self.core_builder = self.core_builder.add_api_urls(urls);
         self
     }
 
     /// Add masked fields (optional)
-    pub fn add_masked_fields(
+    pub fn add_masked_fields<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        fields: impl IntoIterator<Item = impl Into<String>>,
+        fields: I,
     ) -> Self {
         self.core_builder = self.core_builder.add_masked_fields(fields);
         self
     }
 
     /// Set masked fields (optional)
-    pub fn set_masked_fields(
+    pub fn set_masked_fields<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        fields: impl IntoIterator<Item = impl Into<String>>,
+        fields: I,
     ) -> Self {
         self.core_builder = self.core_builder.set_masked_fields(fields);
         self
     }
 
     /// Add regex patterns for masked fields (optional)
-    pub fn add_masked_fields_regex(
+    pub fn add_masked_fields_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.add_masked_fields_regex(patterns)?;
         Ok(self)
     }
 
     /// Set regex patterns for masked fields (optional)
-    pub fn set_masked_fields_regex(
+    pub fn set_masked_fields_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.set_masked_fields_regex(patterns)?;
         Ok(self)
     }
 
     /// Add ignored routes (optional)
-    pub fn add_ignored_routes(
+    pub fn add_ignored_routes<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        routes: impl IntoIterator<Item = impl Into<String>>,
+        routes: I,
     ) -> Self {
         self.core_builder = self.core_builder.add_ignored_routes(routes);
         self
     }
 
     /// Set ignored routes (optional)
-    pub fn set_ignored_routes(
+    pub fn set_ignored_routes<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        routes: impl IntoIterator<Item = impl Into<String>>,
+        routes: I,
     ) -> Self {
         self.core_builder = self.core_builder.set_ignored_routes(routes);
         self
     }
 
     /// Add regex patterns for ignored routes (optional)
-    pub fn add_ignored_routes_regex(
+    pub fn add_ignored_routes_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.add_ignored_routes_regex(patterns)?;
         Ok(self)
     }
 
     /// Set regex patterns for ignored routes (optional)
-    pub fn set_ignored_routes_regex(
+    pub fn set_ignored_routes_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.set_ignored_routes_regex(patterns)?;
         Ok(self)

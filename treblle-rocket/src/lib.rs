@@ -6,7 +6,6 @@
 mod config;
 mod extractors;
 mod fairing;
-mod tests;
 
 pub use config::RocketConfig;
 pub use extractors::TreblleState;
@@ -20,7 +19,7 @@ pub struct Treblle {
 
 impl Treblle {
     /// Create a new Treblle instance with the API key and default configuration
-    pub fn new(api_key: String) -> Self {
+    pub fn new<T: Into<String>>(api_key: T) -> Self {
         let config = RocketConfig::builder().api_key(api_key).build().unwrap();
 
         Treblle { config }

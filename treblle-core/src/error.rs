@@ -74,12 +74,12 @@ mod tests {
     #[test]
     fn test_treblle_error_display() {
         let error = TreblleError::Http("Not Found".to_string());
-        assert_eq!(format!("{}", error), "HTTP error: Not Found");
+        assert_eq!(format!("{error}"), "HTTP error: Not Found");
     }
 
     #[test]
     fn test_treblle_error_conversion() {
-        let io_error = std::io::Error::new(std::io::ErrorKind::Other, "IO Error");
+        let io_error = io::Error::new(io::ErrorKind::Other, "IO Error");
         let treblle_error: TreblleError = io_error.into();
         assert!(matches!(treblle_error, TreblleError::Io(_)));
     }

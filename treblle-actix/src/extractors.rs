@@ -1,10 +1,13 @@
-use actix_http::body::MessageBody;
+use actix_http::body::BodySize::Stream;
+use actix_http::body::{BodySize, MessageBody};
 use actix_http::header::HeaderMap as ActixHeaderMap;
+use actix_http::uri::PathAndQuery;
 use actix_web::{
     dev::{ServiceRequest, ServiceResponse},
     web::Bytes,
     HttpMessage,
 };
+use http::header::{HeaderName, HeaderValue};
 use http::HeaderMap as HttpHeaderMap;
 use serde_json::Value;
 use std::sync::OnceLock;
@@ -25,15 +28,20 @@ impl ActixExtractor {
         let scheme = connection_info.scheme();
         let host = connection_info.host();
         let uri = req.uri();
-        format!("{}://{}{}", scheme, host, uri.path_and_query().map(|p| p.as_str()).unwrap_or(""))
+        format!(
+            "{}://{}{}",
+            scheme,
+            host,
+            uri.path_and_query().map(PathAndQuery::as_str).unwrap_or("")
+        )
     }
 
     // Convert Actix HeaderMap to HTTP HeaderMap
     fn convert_headers(headers: &ActixHeaderMap) -> HttpHeaderMap {
         let mut http_headers = HttpHeaderMap::new();
-        for (key, value) in headers.iter() {
-            if let Ok(name) = http::header::HeaderName::from_bytes(key.as_str().as_bytes()) {
-                if let Ok(val) = http::header::HeaderValue::from_bytes(value.as_bytes()) {
+        for (key, value) in headers {
+            if let Ok(name) = HeaderName::from_bytes(key.as_str().as_bytes()) {
+                if let Ok(val) = HeaderValue::from_bytes(value.as_bytes()) {
                     http_headers.insert(name, val);
                 }
             }
@@ -78,9 +86,9 @@ impl TreblleExtractor for ActixExtractor {
 
     fn extract_response_info(res: &Self::Response, duration: Duration) -> ResponseInfo {
         let body_size = match res.response().body().size() {
-            actix_http::body::BodySize::None => 0,
-            actix_http::body::BodySize::Sized(size) => size,
-            actix_http::body::BodySize::Stream => 0, // Can't determine size of streaming body
+            BodySize::None => 0,
+            BodySize::Sized(size) => size,
+            Stream => 0, // Can't determine size of streaming body
         };
 
         ResponseInfo {
@@ -155,11 +163,9 @@ impl TreblleExtractor for ActixExtractor {
                 let os_info = os_info::get();
                 ServerInfo {
                     ip: local_ip_address::local_ip()
-                        .map(|ip| ip.to_string())
-                        .unwrap_or_else(|_| "unknown".to_string()),
+                        .map_or_else(|_| "unknown".to_string(), |ip| ip.to_string()),
                     timezone: time::UtcOffset::current_local_offset()
-                        .map(|o| o.to_string())
-                        .unwrap_or_else(|_| "UTC".to_string()),
+                        .map_or_else(|_| "UTC".to_string(), |o| o.to_string()),
                     software: Some(format!("actix-web/{}", env!("CARGO_PKG_VERSION"))),
                     signature: None,
                     protocol: "HTTP/1.1".to_string(),

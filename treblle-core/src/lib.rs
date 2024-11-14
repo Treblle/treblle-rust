@@ -26,13 +26,3 @@ pub use utils::mask_sensitive_data;
 
 /// The version of the Treblle SDK.
 pub const TREBLLE_SDK_VERSION: &str = env!("CARGO_PKG_VERSION");
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_treblle_sdk_version() {
-        assert!(!TREBLLE_SDK_VERSION.is_empty());
-    }
-}

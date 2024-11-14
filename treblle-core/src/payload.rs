@@ -28,8 +28,7 @@ impl PayloadBuilder {
                         ["error", "message", "error_description"]
                             .iter()
                             .find_map(|&key| map.get(key))
-                            .map(|v| v.to_string())
-                            .unwrap_or_else(|| body.to_string())
+                            .map_or_else(|| body.to_string(), ToString::to_string)
                     }
                     _ => body.to_string(),
                 };
@@ -151,22 +150,6 @@ mod tests {
         type Request = ();
         type Response = MockResponse;
 
-        fn extract_server_info() -> ServerInfo {
-            ServerInfo {
-                ip: "127.0.0.1".to_string(),
-                timezone: "UTC".to_string(),
-                software: Some("mock-server/1.0".to_string()),
-                signature: None,
-                protocol: "HTTP/1.1".to_string(),
-                encoding: None,
-                os: OsInfo {
-                    name: "mock-os".to_string(),
-                    release: "1.0".to_string(),
-                    architecture: "mock64".to_string(),
-                },
-            }
-        }
-
         fn extract_request_info(_req: &Self::Request) -> RequestInfo {
             let mut headers = HashMap::new();
             headers.insert("password".to_string(), "secret123".to_string());
@@ -194,6 +177,22 @@ mod tests {
         fn extract_error_info(res: &Self::Response) -> Option<Vec<ErrorInfo>> {
             res.error_info.clone()
         }
+
+        fn extract_server_info() -> ServerInfo {
+            ServerInfo {
+                ip: "127.0.0.1".to_string(),
+                timezone: "UTC".to_string(),
+                software: Some("mock-server/1.0".to_string()),
+                signature: None,
+                protocol: "HTTP/1.1".to_string(),
+                encoding: None,
+                os: OsInfo {
+                    name: "mock-os".to_string(),
+                    release: "1.0".to_string(),
+                    architecture: "mock64".to_string(),
+                },
+            }
+        }
     }
 
     #[test]
@@ -204,7 +203,7 @@ mod tests {
         let payload = PayloadBuilder::build_request_payload::<MockExtractor>(&(), &config);
 
         assert_eq!(payload.api_key, "test_key");
-        assert_eq!(payload.data.request.headers.get("password").unwrap(), "*****");
+        assert_eq!(&payload.data.request.headers["password"], "*****");
         assert_eq!(payload.data.request.body.as_ref().unwrap()["password"], "*****");
         assert_eq!(payload.data.request.body.as_ref().unwrap()["email"], "test@example.com");
     }

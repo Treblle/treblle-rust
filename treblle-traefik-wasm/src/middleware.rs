@@ -15,17 +15,16 @@ pub struct TreblleMiddleware;
 impl TreblleMiddleware {
     /// Check if the request/response should be processed
     fn should_process(kind: u32) -> bool {
-        let result = host_get_header_values(kind, "content-type")
+        host_get_header_values(kind, "content-type")
             .map(|ct| {
                 let is_json = ct.to_lowercase().contains("application/json");
-                log(LogLevel::Debug, &format!("Content-Type: {}, is_json: {}", ct, is_json));
+                log(LogLevel::Debug, &format!("Content-Type: {ct}, is_json: {is_json}"));
                 is_json
             })
             .unwrap_or_else(|e| {
-                log(LogLevel::Error, &format!("Failed to get Content-Type header: {}", e));
+                log(LogLevel::Error, &format!("Failed to get Content-Type header: {e}"));
                 false
-            });
-        result
+            })
     }
 
     /// Process an incoming HTTP request
@@ -69,10 +68,14 @@ impl TreblleMiddleware {
                         payload_json.len()
                     ),
                 );
-                log(LogLevel::Debug, &format!(
-                    "JSON serialization took: {:?}, size: {} bytes",
-                    start_send.elapsed(), payload_json.len()
-                ));
+                log(
+                    LogLevel::Debug,
+                    &format!(
+                        "JSON serialization took: {:?}, size: {} bytes",
+                        start_send.elapsed(),
+                        payload_json.len()
+                    ),
+                );
                 if let Err(e) = HTTP_CLIENT.send(&payload_json, &CONFIG.core.api_key) {
                     log(LogLevel::Error, &format!("Failed to send request data to Treblle: {e}"));
                 } else {
@@ -141,15 +144,16 @@ impl TreblleMiddleware {
                         payload_json.len()
                     ),
                 );
-                log(LogLevel::Debug, &format!(
-                    "JSON serialization took: {:?}, size: {} bytes",
-                    start_send.elapsed(), payload_json.len()
-                ));
+                log(
+                    LogLevel::Debug,
+                    &format!(
+                        "JSON serialization took: {:?}, size: {} bytes",
+                        start_send.elapsed(),
+                        payload_json.len()
+                    ),
+                );
                 if let Err(e) = HTTP_CLIENT.send(&payload_json, &CONFIG.core.api_key) {
-                    log(
-                        LogLevel::Error,
-                        &format!("Failed to send response data to Treblle: {e}"),
-                    );
+                    log(LogLevel::Error, &format!("Failed to send response data to Treblle: {e}"));
                 } else {
                     log(LogLevel::Debug, "Successfully sent response data to Treblle");
                 }

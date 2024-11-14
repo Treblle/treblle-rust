@@ -3,8 +3,10 @@
     description            = "Treblle integration for Axum web framework"
     include                = ["/src"]
     authors.workspace      = true
+    categories.workspace   = true
     edition.workspace      = true
     homepage.workspace     = true
+    keywords.workspace     = true
     license.workspace      = true
     repository.workspace   = true
     rust-version.workspace = true
@@ -20,6 +22,7 @@
     bytes            = "1.0"
     chrono           = { version = "0.4", features = ["serde"] }
     hyper            = { version = "1.5.0", features = ["full"] }
+    http             = { workspace = true }
     local-ip-address = { workspace = true }
     os_info          = { workspace = true }
     serde            = { workspace = true }
@@ -31,7 +34,6 @@
 
 
 [dev-dependencies]
-    http           = { workspace = true }
     http-body-util = "0.1"
     tokio-test     = "0.4"
     tower-http     = { version = "0.6.1", features = ["trace", "timeout"] }

@@ -1,9 +1,8 @@
 //! Treblle integration for Axum web framework.
 
 mod config;
-mod extractors;
+pub mod extractors;
 mod middleware;
-mod tests;
 
 use axum::{middleware::from_fn_with_state, Router};
 use std::sync::Arc;
@@ -14,12 +13,12 @@ pub use middleware::{treblle_middleware, TreblleLayer};
 /// Treblle service for Axum
 #[derive(Clone)]
 pub struct Treblle {
-    config: Arc<AxumConfig>,
+    pub config: Arc<AxumConfig>,
 }
 
 impl Treblle {
     /// Create a new Treblle instance with the API key and default configuration
-    pub fn new(api_key: impl Into<String>) -> Self {
+    pub fn new<T: Into<String>>(api_key: T) -> Self {
         let config = AxumConfig::builder()
             .api_key(api_key)
             .build()
@@ -32,7 +31,7 @@ impl Treblle {
     pub fn from_config(config: AxumConfig) -> Self {
         Treblle { config: Arc::new(config) }
     }
-    
+
     /// Create the Treblle middleware layer
     pub fn layer(self) -> TreblleLayer {
         TreblleLayer::new(self.config)

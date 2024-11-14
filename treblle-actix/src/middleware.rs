@@ -44,8 +44,8 @@ where
     fn new_transform(&self, service: S) -> Self::Future {
         ready(Ok(TreblleMiddlewareService {
             service,
-            config: self.config.clone(),
-            treblle_client: self.treblle_client.clone(),
+            config: Arc::<ActixConfig>::clone(&self.config),
+            treblle_client: Arc::<TreblleClient>::clone(&self.treblle_client),
         }))
     }
 }
@@ -67,17 +67,16 @@ where
     forward_ready!(service);
 
     fn call(&self, req: ServiceRequest) -> Self::Future {
-        let config = self.config.clone();
-        let treblle_client = self.treblle_client.clone();
+        let config = Arc::<ActixConfig>::clone(&self.config);
+        let treblle_client = Arc::<TreblleClient>::clone(&self.treblle_client);
         let start_time = Instant::now();
 
-        let should_process = !config.core.should_ignore_route(req.uri().path())
-            && req
-                .headers()
-                .get("Content-Type")
-                .and_then(|ct| ct.to_str().ok())
-                .map(|ct| ct.starts_with("application/json"))
-                .unwrap_or(false);
+        let should_process = !config.core.should_ignore_route(req.uri().path()) && req
+            .headers()
+            .get("Content-Type")
+            .and_then(|ct| ct.to_str().ok())
+            .map(|ct| ct.starts_with("application/json"))
+            .unwrap_or(false);
 
         if should_process {
             req.request().extensions_mut().insert(Bytes::new());
@@ -86,7 +85,7 @@ where
             let request_payload =
                 PayloadBuilder::build_request_payload::<ActixExtractor>(&req, &config.core);
 
-            let treblle_client_clone = treblle_client.clone();
+            let treblle_client_clone = Arc::<TreblleClient>::clone(&treblle_client);
             actix_web::rt::spawn(async move {
                 if let Err(e) = treblle_client_clone.send_to_treblle(request_payload).await {
                     error!("Failed to send request payload to Treblle: {:?}", e);
@@ -95,8 +94,8 @@ where
         }
 
         let fut = self.service.call(req);
-        let config = self.config.clone();
-        let treblle_client = self.treblle_client.clone();
+        let config = Arc::<ActixConfig>::clone(&self.config);
+        let treblle_client = Arc::<TreblleClient>::clone(&self.treblle_client);
 
         Box::pin(async move {
             let res = fut.await?;

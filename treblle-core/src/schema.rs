@@ -103,8 +103,8 @@ mod tests {
             api_key: "test_key".to_string(),
             project_id: "test_project".to_string(),
             version: 0.0,
-            sdk: "".to_string(),
-            data: Default::default(),
+            sdk: String::new(),
+            data: PayloadData::default(),
         };
 
         let serialized = serde_json::to_string(&payload).unwrap();

@@ -50,10 +50,15 @@ impl WasiHttpClient {
         max_pool_size: usize,
         root_ca_path: Option<String>,
     ) -> Self {
-        log(LogLevel::Debug, &format!(
-            "Initializing WasiHttpClient with {} URLs, max_retries: {}, max_pool_size: {}",
-            api_urls.len(), max_retries, max_pool_size
-        ));
+        log(
+            LogLevel::Debug,
+            &format!(
+                "Initializing WasiHttpClient with {} URLs, max_retries: {}, max_pool_size: {}",
+                api_urls.len(),
+                max_retries,
+                max_pool_size
+            ),
+        );
 
         Self {
             api_urls,
@@ -77,16 +82,18 @@ impl WasiHttpClient {
                     return Ok(());
                 }
                 Err(e) => {
-                    log(LogLevel::Error, &format!("Failed to send data (attempt {}): {}", retries + 1, e));
+                    log(
+                        LogLevel::Error,
+                        &format!("Failed to send data (attempt {}): {}", retries + 1, e),
+                    );
                     last_error = Some(e);
                     retries += 1;
                 }
             }
         }
 
-        Err(last_error.unwrap_or_else(|| {
-            TreblleError::Http("Maximum retry attempts exceeded".to_string())
-        }))
+        Err(last_error
+            .unwrap_or_else(|| TreblleError::Http("Maximum retry attempts exceeded".to_string())))
     }
 
     /// Attempts to send data to the Treblle API once
@@ -108,7 +115,7 @@ impl WasiHttpClient {
         let mut stream = self.get_connection(&host, port)?;
         let request = self.build_request(&host, parsed_url.path(), payload, api_key);
 
-        self.write_request(&mut stream, &request, payload)?;
+        Self::write_request(&mut stream, &request, payload)?;
 
         // We don't need to read the response, but we should try to reuse the connection
         self.return_connection(stream, host);
@@ -141,18 +148,16 @@ impl WasiHttpClient {
         log(LogLevel::Debug, "Creating new connection");
 
         // Create a new connection
-        let stream = TcpStream::connect((host, port))
-            .map_err(|e| TreblleError::Tcp(e.to_string()))?;
+        let stream =
+            TcpStream::connect((host, port)).map_err(|e| TreblleError::Tcp(e.to_string()))?;
 
-        stream.set_nonblocking(true)
-            .map_err(|e| TreblleError::Tcp(e.to_string()))?;
+        stream.set_nonblocking(true).map_err(|e| TreblleError::Tcp(e.to_string()))?;
 
         let server_name = ServerName::try_from(host)
             .map_err(|_| TreblleError::InvalidHostname(host.to_string()))?;
 
         let tls_config = self.get_tls_config()?;
-        let client = ClientConnection::new(tls_config, server_name)
-            .map_err(TreblleError::Tls)?;
+        let client = ClientConnection::new(tls_config, server_name).map_err(TreblleError::Tls)?;
 
         Ok(StreamOwned::new(client, stream))
     }
@@ -178,11 +183,7 @@ impl WasiHttpClient {
         if let Ok(mut pool) = self.connection_pool.lock() {
             if pool.len() < self.max_pool_size {
                 log(LogLevel::Debug, &format!("Returning connection to pool for host: {host}"));
-                pool.push(PooledConnection {
-                    stream,
-                    last_used: Instant::now(),
-                    host,
-                });
+                pool.push(PooledConnection { stream, last_used: Instant::now(), host });
             } else {
                 log(LogLevel::Debug, "Connection pool is full, discarding connection");
             }
@@ -191,9 +192,8 @@ impl WasiHttpClient {
 
     /// Gets or initializes the TLS configuration
     fn get_tls_config(&self) -> Result<Arc<ClientConfig>, TreblleError> {
-        let mut config_guard = TLS_CONFIG
-            .lock()
-            .map_err(|e| TreblleError::LockError(e.to_string()))?;
+        let mut config_guard =
+            TLS_CONFIG.lock().map_err(|e| TreblleError::LockError(e.to_string()))?;
 
         if let Some(config) = config_guard.as_ref() {
             return Ok(Arc::<ClientConfig>::clone(config));
@@ -236,7 +236,6 @@ impl WasiHttpClient {
 
     /// Writes the request and payload to the stream with timeout handling
     fn write_request(
-        &self,
         stream: &mut TlsStream,
         request: &str,
         payload: &[u8],
@@ -295,12 +294,7 @@ mod tests {
 
     #[test]
     fn test_build_request() {
-        let client = WasiHttpClient::new(
-            vec!["https://api.treblle.com".to_string()],
-            3,
-            10,
-            None,
-        );
+        let client = WasiHttpClient::new(vec!["https://api.treblle.com".to_string()], 3, 10, None);
         let payload = b"test";
         let request = client.build_request("api.treblle.com", "/v1/logs", payload, "test-key");
 

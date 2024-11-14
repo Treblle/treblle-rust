@@ -1,5 +1,6 @@
 use axum::body::Body;
 use axum::http::{Request, Response};
+use http::uri::PathAndQuery;
 use hyper::body::Bytes;
 use serde_json::Value;
 use std::sync::OnceLock;
@@ -18,9 +19,9 @@ impl AxumExtractor {
     fn construct_full_url(req: &Request<Body>) -> String {
         let scheme = req.uri().scheme_str().unwrap_or("http");
         let host = req.headers().get("host").and_then(|h| h.to_str().ok()).unwrap_or("");
-        let path_and_query = req.uri().path_and_query().map(|p| p.as_str()).unwrap_or("");
+        let path_and_query = req.uri().path_and_query().map(PathAndQuery::as_str).unwrap_or("");
 
-        format!("{}://{}{}", scheme, host, path_and_query)
+        format!("{scheme}://{host}{path_and_query}")
     }
 }
 
@@ -115,11 +116,9 @@ impl TreblleExtractor for AxumExtractor {
                 let os_info = os_info::get();
                 ServerInfo {
                     ip: local_ip_address::local_ip()
-                        .map(|ip| ip.to_string())
-                        .unwrap_or_else(|_| "unknown".to_string()),
+                        .map_or_else(|_| "unknown".to_string(), |ip| ip.to_string()),
                     timezone: time::UtcOffset::current_local_offset()
-                        .map(|o| o.to_string())
-                        .unwrap_or_else(|_| "UTC".to_string()), // Provide default timezone
+                        .map_or_else(|_| "UTC".to_string(), |o| o.to_string()), // Provide default timezone
                     software: Some(format!("axum/{}", env!("CARGO_PKG_VERSION"))),
                     signature: None,
                     protocol: "HTTP/1.1".to_string(),

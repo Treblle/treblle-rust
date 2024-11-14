@@ -112,12 +112,14 @@ mod tests {
     fn test_load_webpki_roots() {
         let mut root_store = RootCertStore::empty();
         load_webpki_roots(&mut root_store);
+
         assert!(!root_store.is_empty());
     }
 
     #[test]
     fn test_load_root_certs_without_path() {
         let mut root_store = RootCertStore::empty();
+
         assert!(load_root_certs(&mut root_store, None).is_ok());
         assert!(!root_store.is_empty());
     }
@@ -126,6 +128,7 @@ mod tests {
     fn test_load_root_certs_with_invalid_path() {
         let mut root_store = RootCertStore::empty();
         let invalid_path = String::from("/invalid/path/to/cert.pem");
+
         assert!(load_root_certs(&mut root_store, Some(&invalid_path)).is_ok()); // Should fallback to webpki
         assert!(!root_store.is_empty());
     }

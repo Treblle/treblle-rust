@@ -6,7 +6,7 @@ use treblle_core::{Config as CoreConfig, Result};
 #[serde(rename_all = "camelCase")]
 pub struct RocketConfig {
     #[serde(flatten)]
-    pub(crate) core: CoreConfig,
+    pub core: CoreConfig,
 }
 
 /// Builder for Rocket fairing configuration
@@ -18,9 +18,7 @@ pub struct RocketConfigBuilder {
 impl RocketConfig {
     /// Create a new configuration builder
     pub fn builder() -> RocketConfigBuilder {
-        RocketConfigBuilder {
-            core_builder: CoreConfig::builder(),
-        }
+        RocketConfigBuilder { core_builder: CoreConfig::builder() }
     }
 
     /// Get a reference to the core configuration
@@ -31,84 +29,96 @@ impl RocketConfig {
 
 impl RocketConfigBuilder {
     /// Set the API key (required)
-    pub fn api_key(mut self, key: impl Into<String>) -> Self {
+    pub fn api_key<T: Into<String>>(mut self, key: T) -> Self {
         self.core_builder = self.core_builder.api_key(key);
         self
     }
 
     /// Set the project ID (optional)
-    pub fn project_id(mut self, id: impl Into<String>) -> Self {
+    pub fn project_id<T: Into<String>>(mut self, id: T) -> Self {
         self.core_builder = self.core_builder.project_id(id);
         self
     }
 
     /// Set custom API URLs (optional)
-    pub fn set_api_urls(mut self, urls: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn set_api_urls<T: Into<String>, I: IntoIterator<Item = T>>(mut self, urls: I) -> Self {
         self.core_builder = self.core_builder.set_api_urls(urls);
         self
     }
 
     /// Add additional API URLs to the default set
-    pub fn add_api_urls(mut self, urls: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn add_api_urls<T: Into<String>, I: IntoIterator<Item = T>>(mut self, urls: I) -> Self {
         self.core_builder = self.core_builder.add_api_urls(urls);
         self
     }
 
     /// Add masked fields to the default set
-    pub fn add_masked_fields(mut self, fields: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn add_masked_fields<T: Into<String>, I: IntoIterator<Item = T>>(
+        mut self,
+        fields: I,
+    ) -> Self {
         self.core_builder = self.core_builder.add_masked_fields(fields);
         self
     }
 
     /// Set masked fields, replacing the defaults
-    pub fn set_masked_fields(mut self, fields: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn set_masked_fields<T: Into<String>, I: IntoIterator<Item = T>>(
+        mut self,
+        fields: I,
+    ) -> Self {
         self.core_builder = self.core_builder.set_masked_fields(fields);
         self
     }
 
     /// Add regex patterns for masked fields to the default set
-    pub fn add_masked_fields_regex(
+    pub fn add_masked_fields_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.add_masked_fields_regex(patterns)?;
         Ok(self)
     }
 
     /// Set regex patterns for masked fields, replacing the defaults
-    pub fn set_masked_fields_regex(
+    pub fn set_masked_fields_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.set_masked_fields_regex(patterns)?;
         Ok(self)
     }
 
     /// Add ignored routes to the default set
-    pub fn add_ignored_routes(mut self, routes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn add_ignored_routes<T: Into<String>, I: IntoIterator<Item = T>>(
+        mut self,
+        routes: I,
+    ) -> Self {
         self.core_builder = self.core_builder.add_ignored_routes(routes);
         self
     }
 
     /// Set ignored routes, replacing the defaults
-    pub fn set_ignored_routes(mut self, routes: impl IntoIterator<Item = impl Into<String>>) -> Self {
+    pub fn set_ignored_routes<T: Into<String>, I: IntoIterator<Item = T>>(
+        mut self,
+        routes: I,
+    ) -> Self {
         self.core_builder = self.core_builder.set_ignored_routes(routes);
         self
     }
 
     /// Add regex patterns for ignored routes to the default set
-    pub fn add_ignored_routes_regex(
+    pub fn add_ignored_routes_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.add_ignored_routes_regex(patterns)?;
         Ok(self)
     }
 
     /// Set regex patterns for ignored routes, replacing the defaults
-    pub fn set_ignored_routes_regex(
+    pub fn set_ignored_routes_regex<T: Into<String>, I: IntoIterator<Item = T>>(
         mut self,
-        patterns: impl IntoIterator<Item = impl Into<String>>,
+        patterns: I,
     ) -> Result<Self> {
         self.core_builder = self.core_builder.set_ignored_routes_regex(patterns)?;
         Ok(self)
@@ -116,9 +126,7 @@ impl RocketConfigBuilder {
 
     /// Build the configuration
     pub fn build(self) -> Result<RocketConfig> {
-        Ok(RocketConfig {
-            core: self.core_builder.build()?,
-        })
+        Ok(RocketConfig { core: self.core_builder.build()? })
     }
 }
 
@@ -127,9 +135,8 @@ impl<'a> TryFrom<&'a str> for RocketConfig {
     type Error = treblle_core::error::TreblleError;
 
     fn try_from(config_str: &'a str) -> std::result::Result<Self, Self::Error> {
-        serde_json::from_str(config_str).map_err(|e| {
-            Self::Error::Config(format!("Failed to parse Rocket configuration: {}", e))
-        })
+        serde_json::from_str(config_str)
+            .map_err(|e| Self::Error::Config(format!("Failed to parse Rocket configuration: {e}")))
     }
 }
 
@@ -140,11 +147,8 @@ mod tests {
 
     #[test]
     fn test_builder_basic() {
-        let config = RocketConfig::builder()
-            .api_key("test_key")
-            .project_id("test_project")
-            .build()
-            .unwrap();
+        let config =
+            RocketConfig::builder().api_key("test_key").project_id("test_project").build().unwrap();
 
         assert_eq!(config.core.api_key, "test_key");
         assert_eq!(config.core.project_id, "test_project");
@@ -208,11 +212,8 @@ mod tests {
 
     #[test]
     fn test_serialization() {
-        let config = RocketConfig::builder()
-            .api_key("test_key")
-            .project_id("test_project")
-            .build()
-            .unwrap();
+        let config =
+            RocketConfig::builder().api_key("test_key").project_id("test_project").build().unwrap();
 
         let json = serde_json::to_string(&config).unwrap();
         let deserialized: RocketConfig = serde_json::from_str(&json).unwrap();

@@ -63,6 +63,7 @@ mod tests {
     use tokio;
     use wiremock::matchers::{header, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
+    use crate::schema::PayloadData;
 
     #[tokio::test]
     async fn test_client_rotation() {
@@ -109,7 +110,7 @@ mod tests {
             project_id: config.project_id,
             version: 0.1,
             sdk: format!("treblle-rust-{}", env!("CARGO_PKG_VERSION")),
-            data: Default::default(),
+            data: PayloadData::default(),
         };
 
         // Send the payload
@@ -145,7 +146,7 @@ mod tests {
             project_id: config.project_id,
             version: 0.1,
             sdk: format!("treblle-rust-{}", env!("CARGO_PKG_VERSION")),
-            data: Default::default(),
+            data: PayloadData::default(),
         };
 
         let result = client.send_to_treblle(payload).await;
