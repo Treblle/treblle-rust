@@ -30,3 +30,6 @@
     serde_json       = { workspace = true }
     time             = { workspace = true, features = ["local-offset"] }
     tracing          = { workspace = true }
+
+[dev-dependencies]
+    proptest = "1.5.0"
