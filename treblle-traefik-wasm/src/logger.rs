@@ -40,9 +40,8 @@ impl LogLevel {
 }
 
 /// Initialize the logger with the configured log level
-pub fn init() {
-    let level = crate::CONFIG.log_level.as_i32();
-    LOG_LEVEL.store(level, Ordering::Relaxed);
+pub fn init(level: LogLevel) {
+    LOG_LEVEL.store(level.as_i32(), Ordering::Relaxed);
     log(LogLevel::Debug, &format!("Log level set to: {:?}", crate::CONFIG.log_level));
 }
 

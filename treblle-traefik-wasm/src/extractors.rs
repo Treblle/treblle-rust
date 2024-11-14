@@ -41,7 +41,7 @@ impl WasmExtractor {
                 if body.len() > MAX_BODY_SIZE {
                     log(
                         LogLevel::Debug,
-                        &format!("Body size {} exceeds limit {}", body.len(), MAX_BODY_SIZE),
+                        &format!("Body size exceeds limit {} > {}", body.len(), MAX_BODY_SIZE),
                     );
                     return None;
                 }

@@ -28,7 +28,7 @@ use bindings::exports::traefik::http_handler::handler::Guest;
 
 pub static CONFIG: Lazy<WasmConfig> = Lazy::new(|| {
     WasmConfig::get_or_fallback().unwrap_or_else(|e| {
-        log(LogLevel::Error, &format!("Failed to get config from host, using defaults: {}", e));
+        log(LogLevel::Error, &format!("Failed to get config from host, using defaults: {e}"));
         WasmConfig::builder().api_key("default").build().expect("Failed to create default config")
     })
 });
@@ -57,6 +57,9 @@ impl Guest for TreblleMiddleware {
         // Force initialization of our statics if not already done
         Lazy::force(&CONFIG);
         Lazy::force(&HTTP_CLIENT);
+
+        // Initialize logger with the configured level
+        logger::init(CONFIG.log_level);
 
         log(LogLevel::Debug, "Guest::handle_request called");
         TreblleMiddleware::handle_request()

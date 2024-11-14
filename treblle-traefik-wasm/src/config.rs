@@ -19,8 +19,26 @@ where
         BoolOrString::String(s) => match s.to_lowercase().as_str() {
             "true" | "yes" | "1" => Ok(true),
             "false" | "no" | "0" => Ok(false),
-            _ => Err(serde::de::Error::custom(format!("invalid boolean value: {}", s))),
+            _ => Err(serde::de::Error::custom(format!("invalid boolean value: {s}"))),
         },
+    }
+}
+
+/// Helper function to deserialize log level from string or enum
+fn deserialize_log_level<'de, D>(deserializer: D) -> std::result::Result<LogLevel, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum LogLevelOrString {
+        LogLevel(LogLevel),
+        String(String),
+    }
+
+    match LogLevelOrString::deserialize(deserializer)? {
+        LogLevelOrString::LogLevel(level) => Ok(level),
+        LogLevelOrString::String(s) => Ok(LogLevel::from_str(&s)),
     }
 }
 
@@ -43,6 +61,7 @@ pub struct WasmConfig {
 
     /// Log level for WASM host (optional, defaults to Info)
     #[serde(default)]
+    #[serde(deserialize_with = "deserialize_log_level")]
     pub(crate) log_level: LogLevel,
 
     /// Maximum number of connection retries (optional, defaults to 3)
@@ -81,7 +100,10 @@ impl WasmConfig {
                     log(LogLevel::Error, &format!("Invalid configuration: {e}"));
                     Err(e)
                 } else {
-                    log(LogLevel::Info, &format!("Successfully loaded and validated configuration {:?}", config));
+                    log(
+                        LogLevel::Info,
+                        &format!("Successfully loaded and validated configuration {:?}", config),
+                    );
                     Ok(config)
                 }
             }
@@ -400,40 +422,40 @@ mod tests {
     fn test_bool_deserialization() {
         // Test string "false"
         let json = json!({
-        "apiKey": "test_key",
-        "bufferResponse": "false"
-    });
+            "apiKey": "test_key",
+            "bufferResponse": "false"
+        });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
         assert!(!config.buffer_response);
 
         // Test string "true"
         let json = json!({
-        "apiKey": "test_key",
-        "bufferResponse": "true"
-    });
+            "apiKey": "test_key",
+            "bufferResponse": "true"
+        });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
         assert!(config.buffer_response);
 
         // Test boolean false
         let json = json!({
-        "apiKey": "test_key",
-        "bufferResponse": false
-    });
+            "apiKey": "test_key",
+            "bufferResponse": false
+        });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
         assert!(!config.buffer_response);
 
         // Test boolean true
         let json = json!({
-        "apiKey": "test_key",
-        "bufferResponse": true
-    });
+            "apiKey": "test_key",
+            "bufferResponse": true
+        });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
         assert!(config.buffer_response);
 
         // Test default (no value provided)
         let json = json!({
-        "apiKey": "test_key"
-    });
+            "apiKey": "test_key"
+        });
         let config: WasmConfig = serde_json::from_value(json).unwrap();
         assert!(!config.buffer_response);
     }
@@ -441,9 +463,9 @@ mod tests {
     #[test]
     fn test_invalid_bool_value() {
         let json = json!({
-        "apiKey": "test_key",
-        "bufferResponse": "invalid"
-    });
+            "apiKey": "test_key",
+            "bufferResponse": "invalid"
+        });
         let result = serde_json::from_value::<WasmConfig>(json);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("invalid boolean value"));
