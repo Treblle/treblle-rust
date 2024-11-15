@@ -1,0 +1,3 @@
+[config]
+    log_level             = "error"
+    disable_print_command = true

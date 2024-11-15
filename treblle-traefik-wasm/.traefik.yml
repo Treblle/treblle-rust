@@ -13,7 +13,8 @@ summary: A middleware plugin for logging requests and responses to Treblle API
 # This is mandatory, and Plugins Catalog will try to execute the plugin with the data you provide as part of its startup validity tests.
 # No idea why Traefik calls this "testData" instead of "configuration" or something legit.
 testData:
-  treblleApiUrls:
+  apiKey: "test_key"
+  apiUrls:
     [
       "https://rocknrolla.treblle.com",
       "https://punisher.treblle.com",

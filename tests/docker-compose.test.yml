@@ -1,5 +1,107 @@
 services:
-  # Mock Treblle API service
+  axum-test-service:
+    build:
+      context: ..
+      dockerfile: tests/axum-test-service/Dockerfile
+      args:
+        - RUST_VERSION=${RUST_VERSION}
+    environment:
+      - RUST_LOG=debug
+      - TREBLLE_API_KEY=test_key
+      - TREBLLE_PROJECT_ID=test_project
+      - TREBLLE_API_URL=http://mock-treblle-api:4321
+    # - TREBLLE_API_KEY=L8mhMopwLdNCSBdRWaF4MhDuEdN4H3kN
+    # - TREBLLE_PROJECT_ID=cM4nke7Aav0Xdqnn
+    # - TREBLLE_API_URL=https://rocknrolla.treblle.com
+    ports:
+      - "8082:8082"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8082/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - test-net
+      - monitoring
+
+  actix-test-service:
+    build:
+      context: ..
+      dockerfile: tests/actix-test-service/Dockerfile
+      args:
+        - RUST_VERSION=${RUST_VERSION}
+    environment:
+      - RUST_VERSION=${RUST_VERSION}
+      - RUST_LOG=debug
+      - TREBLLE_API_KEY=test_key
+      - TREBLLE_PROJECT_ID=test_project
+      - TREBLLE_API_URL=http://mock-treblle-api:4321
+    # - TREBLLE_API_KEY=L8mhMopwLdNCSBdRWaF4MhDuEdN4H3kN
+    # - TREBLLE_PROJECT_ID=cM4nke7Aav0Xdqnn
+    # - TREBLLE_API_URL=https://rocknrolla.treblle.com
+    ports:
+      - "8083:8083"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8083/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - test-net
+      - monitoring
+
+  rocket-test-service:
+    build:
+      context: ..
+      dockerfile: tests/rocket-test-service/Dockerfile
+      args:
+        - RUST_VERSION=${RUST_VERSION}
+    environment:
+      - RUST_LOG=debug
+      - TREBLLE_API_KEY=test_key
+      - TREBLLE_PROJECT_ID=test_project
+      - TREBLLE_API_URL=http://mock-treblle-api:4321
+    # - TREBLLE_API_KEY=L8mhMopwLdNCSBdRWaF4MhDuEdN4H3kN
+    # - TREBLLE_PROJECT_ID=cM4nke7Aav0Xdqnn
+    # - TREBLLE_API_URL=https://rocknrolla.treblle.com
+    ports:
+      - "8084:8084"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8084/health || exit 1"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
+    deploy:
+      resources:
+        limits:
+          cpus: '0.50'
+          memory: 512M
+        reservations:
+          cpus: '0.25'
+          memory: 256M
+    networks:
+      - test-net
+      - monitoring
+
   mock-treblle-api:
     build:
       context: ..
@@ -8,70 +110,37 @@ services:
       - "4321:4321"
     environment:
       - RUST_LOG=debug
+      - RUST_VERSION=${RUST_VERSION}
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4321/health"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
     networks:
       - test-net
       - monitoring
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:4321/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
 
-  # Axum test service
-  axum-test-service:
-    build:
-      context: ..
-      dockerfile: tests/axum-test-service/Dockerfile
-    ports:
-      - "8082:8082"
-    environment:
-      - RUST_LOG=debug
-      - TREBLLE_API_KEY=test_key
-      - TREBLLE_PROJECT_ID=test_project
-      - TREBLLE_API_URL=http://mock-treblle-api:4321
-    networks:
-      - test-net
-      - monitoring
-    depends_on:
-      mock-treblle-api:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8082/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 3
-
-  # K6 load testing
   k6:
-    extends:
-      file: docker-compose.monitoring.yml
-      service: k6
+    image: grafana/k6:latest
     volumes:
-      - ./k6-scripts:/scripts
+      - ${PROJECT_ROOT}/tests/k6-scripts:/scripts
     environment:
       - K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write
-      - K6_OUT=prometheus
-    depends_on:
-      axum-test-service:
-        condition: service_healthy
-    command: ["run", "/scripts/load-test.js"]
-
-  # Monitoring stack
-  prometheus:
-    extends:
-      file: docker-compose.monitoring.yml
-      service: prometheus
-
-  grafana:
-    extends:
-      file: docker-compose.monitoring.yml
-      service: grafana
+      - K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true
+      - K6_OUT=experimental-prometheus-rw
+      - MIDDLEWARE_TYPE=${MIDDLEWARE:-axum}
+    profiles:
+      - axum
+      - actix
+      - rocket
+    networks:
+      - monitoring
+      - test-net
 
 networks:
   test-net:
     name: treblle-test-net
   monitoring:
     name: treblle-monitoring
-
-volumes:
-  prometheus_data:
+    external: true

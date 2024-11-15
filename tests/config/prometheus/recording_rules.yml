@@ -1,0 +1,96 @@
+groups:
+  - name: treblle_middleware_metrics
+    rules:
+      - record: request_success_rate_percent
+        expr: |
+          100 * (
+            sum(rate(requests_success_total[1m])) by (type) /
+            sum(rate(requests_total[1m])) by (type)
+          )
+
+      - record: request_latency_avg_ms
+        expr: |
+          rate(request_duration_ms_sum[1m]) /
+          rate(request_duration_ms_count[1m])
+
+      - record: middleware_overhead_avg_ms
+        expr: |
+          (
+            rate(request_duration_ms_sum{type="monitored"}[1m]) /
+            rate(request_duration_ms_count{type="monitored"}[1m])
+          ) -
+          (
+            rate(request_duration_ms_sum{type="regular"}[1m]) /
+            rate(request_duration_ms_count{type="regular"}[1m])
+          )
+
+      - record: masking_effectiveness_percent
+        expr: |
+          100 * sum(masked_fields_total) / sum(sensitive_fields_total)
+
+      - record: mock_api_latency_avg_ms
+        expr: |
+          rate(mock_api_latency_ms_sum[1m]) /
+          rate(mock_api_latency_ms_count[1m])
+
+  - name: system_metrics
+    rules:
+      - record: cpu_usage_percent
+        expr: |
+          100 * (1 - avg(rate(node_cpu_seconds_total{mode="idle"}[5m])) by (instance))
+
+      - record: memory_usage_percent
+        expr: |
+          100 * (
+            node_memory_MemTotal_bytes - node_memory_MemFree_bytes
+            - node_memory_Buffers_bytes - node_memory_Cached_bytes
+          ) / node_memory_MemTotal_bytes
+
+      - record: disk_usage_percent
+        expr: |
+          100 * (
+            node_filesystem_size_bytes{mountpoint="/"}
+            - node_filesystem_free_bytes{mountpoint="/"}
+          ) / node_filesystem_size_bytes{mountpoint="/"}
+
+  - name: runtime_metrics
+    rules:
+      - record: tokio_runtime_health
+        expr: |
+          (
+            rate(tokio_tasks_dropped_total[5m]) /
+            rate(tokio_tasks_instrumented_total[5m])
+          ) * (
+            rate(tokio_poll_count_fast_total[5m]) /
+            (
+              rate(tokio_poll_count_fast_total[5m]) +
+              rate(tokio_poll_count_slow_total[5m])
+            )
+          )
+
+      - record: tokio_avg_poll_duration_ms
+        expr: |
+          rate(tokio_poll_duration_ms_sum[5m]) /
+          rate(tokio_poll_duration_ms_count[5m])
+
+      - record: tokio_avg_task_duration_ms
+        expr: |
+          rate(tokio_scheduled_duration_ms_sum[5m]) /
+          rate(tokio_scheduled_duration_ms_count[5m])
+
+  - name: request_metrics
+    rules:
+      - record: request_size_avg_bytes
+        expr: |
+          rate(request_body_size_bytes_sum[5m]) /
+          rate(request_body_size_bytes_count[5m])
+
+      - record: response_size_avg_bytes
+        expr: |
+          rate(response_body_size_bytes_sum[5m]) /
+          rate(response_body_size_bytes_count[5m])
+
+      - record: request_error_rate
+        expr: |
+          sum(rate(requests_error_total[5m])) by (type) /
+          sum(rate(requests_total[5m])) by (type)

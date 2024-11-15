@@ -24,8 +24,7 @@ impl TreblleLayer {
     pub fn new(config: Arc<AxumConfig>) -> Self {
         TreblleLayer {
             treblle_client: Arc::new(
-                TreblleClient::new(config.core.clone())
-                    .expect("Failed to create Treblle client"),
+                TreblleClient::new(config.core.clone()).expect("Failed to create Treblle client"),
             ),
             config,
         }
@@ -47,11 +46,11 @@ pub async fn treblle_middleware(
 
     let should_process = !layer.config.core.should_ignore_route(req.uri().path())
         && req
-        .headers()
-        .get("Content-Type")
-        .and_then(|ct| ct.to_str().ok())
-        .map(|ct| ct.starts_with("application/json"))
-        .unwrap_or(false);
+            .headers()
+            .get("Content-Type")
+            .and_then(|ct| ct.to_str().ok())
+            .map(|ct| ct.starts_with("application/json"))
+            .unwrap_or(false);
 
     // Process request for Treblle
     let req = if should_process {

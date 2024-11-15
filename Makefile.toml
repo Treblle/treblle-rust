@@ -1,140 +1,247 @@
 [config]
-default_to_workspace = false
-
-# Format task
-[tasks.format]
-install_crate = "rustfmt"
-command = "cargo"
-args = ["fmt", "--all", "--", "--emit=files"]
-
-# Lint task
-[tasks.lint]
-install_crate = "clippy"
-command = "cargo"
-args = ["clippy", "--all-targets", "--all-features"]
-
-# Combined format and lint
-[tasks.fmtclip]
-dependencies = ["format", "lint"]
-
-# Run nextest on treblle crates
-[tasks.test-core]
-command = "cargo"
-args = ["nextest", "run", "-p", "treblle-core"]
-
-[tasks.test-axum]
-command = "cargo"
-args = ["nextest", "run", "-p", "treblle-axum"]
-
-[tasks.test-actix]
-command = "cargo"
-args = ["nextest", "run", "-p", "treblle-actix"]
-
-[tasks.test-rocket]
-command = "cargo"
-args = ["nextest", "run", "-p", "treblle-rocket"]
-
-[tasks.test-traefik]
-command = "cargo"
-args = ["nextest", "run", "-p", "treblle-traefik-wasm"]
-dependencies = ["wasm-test-unit"]
-
-# Run all tests
-[tasks.test-all]
-dependencies = [
-    "test-core",
-    "test-axum",
-    "test-actix",
-    "test-rocket",
-    "test-traefik",
-]
-
-# List tests for each crate
-[tasks.list-core]
-command = "cargo"
-args = ["nextest", "list", "-p", "treblle-core"]
-
-[tasks.list-axum]
-command = "cargo"
-args = ["nextest", "list", "-p", "treblle-axum"]
-
-[tasks.list-actix]
-command = "cargo"
-args = ["nextest", "list", "-p", "treblle-actix"]
-
-[tasks.list-rocket]
-command = "cargo"
-args = ["nextest", "list", "-p", "treblle-rocket"]
-
-[tasks.list-traefik]
-command = "cargo"
-args = ["nextest", "list", "-p", "treblle-traefik-wasm"]
-
-# List all tests
-[tasks.list-all]
-dependencies = [
-    "list-core",
-    "list-axum",
-    "list-actix",
-    "list-rocket",
-    "list-traefik",
-]
-
-# Audit tasks for each crate
-[tasks.audit-core]
-command = "cargo"
-args = ["audit", "-p", "treblle-core"]
-
-[tasks.audit-traefik]
-command = "cargo"
-args = ["audit", "-p", "treblle-traefik-wasm"]
-
-[tasks.audit-actix]
-command = "cargo"
-args = ["audit", "-p", "treblle-actix"]
-
-[tasks.audit-axum]
-command = "cargo"
-args = ["audit", "-p", "treblle-axum"]
-
-[tasks.audit-rocket]
-command = "cargo"
-args = ["audit", "-p", "treblle-rocket"]
-
-# Audit all crates
-[tasks.audit-all]
-dependencies = [
-    "audit-core",
-    "audit-traefik",
-    "audit-actix",
-    "audit-axum",
-    "audit-rocket",
-]
+    default_to_workspace = false
+    reduce_output        = true
+    skip_core_tasks      = true
 
 [env]
-WASM_TARGET = "wasm32-wasip1"
+    WASM_TARGET = "wasm32-wasip1"
+    RUST_VERSION = "1.82"
+    MIDDLEWARE = { value = "axum", condition = { env_not_set = [
+        "MIDDLEWARE",
+    ] } }
+    DURATION = { value = "60", condition = { env_not_set = ["DURATION"] } }
+    VUS = { value = "10", condition = { env_not_set = ["VUS"] } }
 
-# WASM-specific tasks
-[tasks.wasm-test-unit]
-command = "cargo"
-args = ["nextest", "run", "-p", "treblle-traefik-wasm", "--no-default-features", "--features=test-utils"]
+# Core development tasks
+[tasks.format]
+    install_crate = "rustfmt"
+    command       = "cargo"
+    args          = ["fmt", "--all", "--", "--emit=files"]
 
-[tasks.wasm-test-wasm]
-command = "cargo"
-args = ["test", "-p", "treblle-traefik-wasm", "--target", "${WASM_TARGET}", "--features=wasm"]
+[tasks.lint]
+    install_crate = "clippy"
+    command       = "cargo"
+    args          = ["clippy", "--all-targets", "--all-features"]
 
-[tasks.wasm-build]
-command = "cargo"
-args = ["build", "--target", "${WASM_TARGET}", "--features=wasm"]
+[tasks.fmtclip]
+    dependencies = ["format", "lint"]
 
-[tasks.wasm-build-release]
-command = "cargo"
-args = ["build", "--target", "${WASM_TARGET}", "--features=wasm", "--release"]
+# Unit tests tasks
+[tasks.test-core]
+    command = "cargo"
+    args    = ["nextest", "run", "-p", "treblle-core"]
 
+[tasks.test-axum]
+    command = "cargo"
+    args    = ["nextest", "run", "-p", "treblle-axum"]
 
-# Install required tools
-[tasks.install-tools]
-script = '''
-cargo install cargo-nextest
-cargo install cargo-audit
+[tasks.test-actix]
+    command = "cargo"
+    args    = ["nextest", "run", "-p", "treblle-actix"]
+
+[tasks.test-rocket]
+    command = "cargo"
+    args    = ["nextest", "run", "-p", "treblle-rocket"]
+
+[tasks.test-traefik]
+    command      = "cargo"
+    args         = ["nextest", "run", "-p", "treblle-traefik-wasm"]
+    dependencies = ["wasm-test-unit"]
+
+[tasks.test-all-unit]
+    dependencies = [
+        "test-core",
+        "test-axum",
+        "test-actix",
+        "test-rocket",
+        "test-traefik",
+    ]
+
+# Integration tests tasks
+[tasks.setup-monitoring]
+    description = "Set up monitoring stack"
+    script = '''
+#!/usr/bin/env bash
+PROJECT_ROOT=$(dirname ${CARGO_MAKE_MAKEFILE_PATH})
+
+echo "Setting up monitoring stack..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.monitoring.yml up -d prometheus grafana
+echo "Waiting for monitoring stack to be ready..."
+sleep 5
 '''
+
+[tasks.integration-test-axum]
+    description = "Run integration tests for Axum middleware"
+    dependencies = ["setup-monitoring"]
+    script = '''
+#!/usr/bin/env bash
+export PROJECT_ROOT=$(dirname ${CARGO_MAKE_MAKEFILE_PATH})
+
+echo "Testing Axum middleware..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.test.yml up -d axum-test-service mock-treblle-api
+echo "Waiting for services to be ready..."
+sleep 10
+
+echo "Running k6 tests..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.test.yml --profile axum run \
+    --rm \
+    -e MIDDLEWARE_TYPE=axum \
+    -e K6_OUT=experimental-prometheus-rw \
+    -e K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write \
+    -e K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true \
+    -e K6_PROMETHEUS_RW_TREND_STATS="avg,min,max,p(90),p(95)" \
+    -e K6_PROMETHEUS_RW_STALE_MARKERS=false \
+    k6 run /scripts/load-test.js
+'''
+
+[tasks.integration-test-actix]
+    description = "Run integration tests for Actix middleware"
+    dependencies = ["setup-monitoring"]
+    script = '''
+#!/usr/bin/env bash
+export PROJECT_ROOT=$(dirname ${CARGO_MAKE_MAKEFILE_PATH})
+
+echo "Testing Actix middleware..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.test.yml up -d actix-test-service mock-treblle-api
+echo "Waiting for services to be ready..."
+sleep 10
+
+echo "Running k6 tests..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.test.yml --profile actix run \
+    --rm \
+    -e MIDDLEWARE_TYPE=actix \
+    -e K6_OUT=experimental-prometheus-rw \
+    -e K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write \
+    -e K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true \
+    -e K6_PROMETHEUS_RW_TREND_STATS="avg,min,max,p(90),p(95)" \
+    -e K6_PROMETHEUS_RW_STALE_MARKERS=false \
+    k6 run /scripts/load-test.js
+'''
+
+[tasks.integration-test-rocket]
+    description = "Run integration tests for Rocket middleware"
+    dependencies = ["setup-monitoring"]
+    script = '''
+#!/usr/bin/env bash
+export PROJECT_ROOT=$(dirname ${CARGO_MAKE_MAKEFILE_PATH})
+
+echo "Testing Rocket middleware..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.test.yml up -d rocket-test-service mock-treblle-api
+echo "Waiting for services to be ready..."
+sleep 10
+
+echo "Running k6 tests..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.test.yml --profile rocket run \
+    --rm \
+    -e MIDDLEWARE_TYPE=rocket \
+    -e K6_OUT=experimental-prometheus-rw \
+    -e K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write \
+    -e K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true \
+    -e K6_PROMETHEUS_RW_TREND_STATS="avg,min,max,p(90),p(95)" \
+    -e K6_PROMETHEUS_RW_STALE_MARKERS=false \
+    k6 run /scripts/load-test.js
+'''
+
+[tasks.integration-test-all]
+    description = "Run all integration tests"
+    dependencies = ["setup-monitoring"]
+    script = '''
+#!/usr/bin/env bash
+PROJECT_ROOT=$(dirname ${CARGO_MAKE_MAKEFILE_PATH})
+
+echo "Testing all middleware implementations..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.test.yml up -d
+echo "Waiting for all services to be healthy..."
+sleep 15
+
+for middleware in axum actix rocket; do
+    echo "Running tests for $middleware..."
+    docker compose -f ${PROJECT_ROOT}/tests/docker-compose.test.yml run --rm k6 run \
+        -e MIDDLEWARE_TYPE=$middleware \
+        -e K6_OUT=experimental-prometheus-rw \
+        -e K6_PROMETHEUS_RW_SERVER_URL=http://prometheus:9090/api/v1/write \
+        -e K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM=true \
+        -e K6_PROMETHEUS_RW_TREND_STATS="avg,min,max,p(90),p(95)" \
+        -e K6_PROMETHEUS_RW_STALE_MARKERS=false \
+        /scripts/load-test.js
+done
+'''
+
+[tasks.clean]
+    description = "Clean up test environment"
+    category = "Cleanup"
+    script = '''
+#!/usr/bin/env bash
+echo "🧹 Cleaning up..."
+
+export PROJECT_ROOT=$(dirname ${CARGO_MAKE_MAKEFILE_PATH})
+
+echo "→ Removing test containers..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.test.yml down -v --remove-orphans
+
+echo "→ Removing monitoring stack..."
+docker compose -f ${PROJECT_ROOT}/tests/docker-compose.monitoring.yml down -v --remove-orphans
+
+echo "→ Cleaning Cargo artifacts..."
+cargo clean
+
+echo "✨ Done"
+'''
+
+# Setup and validation tasks
+[tasks.check-prereqs]
+    description = "Check if required tools are installed"
+    script = '''
+#!/usr/bin/env bash
+function check_command() {
+    if ! command -v $1 &> /dev/null; then
+        echo "❌ $1 is not installed"
+        exit 1
+    fi
+    echo "✅ $1 is installed"
+}
+
+check_command docker
+check_command curl
+'''
+
+[tasks.setup]
+    description  = "Setup complete test environment"
+    dependencies = ["check-prereqs", "setup-monitoring"]
+
+[tasks.help]
+    description = "Display available tasks"
+    script = '''
+#!/usr/bin/env bash
+echo "Available tasks:"
+echo "Development:"
+echo "  cargo make format       - Format code"
+echo "  cargo make lint        - Run clippy"
+echo "  cargo make fmtclip     - Run format and lint"
+echo ""
+echo "Unit Tests:"
+echo "  cargo make test-all-unit   - Run all unit tests"
+echo "  cargo make test-core       - Test core crate"
+echo "  cargo make test-axum       - Test Axum crate"
+echo "  cargo make test-actix      - Test Actix crate"
+echo "  cargo make test-rocket     - Test Rocket crate"
+echo "  cargo make test-traefik    - Test Traefik crate"
+echo ""
+echo "Integration Tests:"
+echo "  cargo make setup              - Set up test environment"
+echo "  cargo make integration-test-axum    - Test Axum middleware"
+echo "  cargo make integration-test-actix   - Test Actix middleware"
+echo "  cargo make integration-test-rocket  - Test Rocket middleware"
+echo "  cargo make integration-test-all     - Test all implementations"
+echo ""
+echo "Cleanup:"
+echo "  cargo make clean         - Clean up test environment"
+echo ""
+echo "Environment variables:"
+echo "  MIDDLEWARE  - Middleware to test (default: axum)"
+echo "  DURATION    - Test duration in seconds (default: 60)"
+echo "  VUS        - Number of virtual users (default: 10)"
+'''
+
+[tasks.default]
+    alias = "help"

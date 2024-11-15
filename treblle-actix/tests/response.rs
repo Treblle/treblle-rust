@@ -1,10 +1,10 @@
-use treblle_actix::extractors::ActixExtractor;
 use actix_http::{header, HttpMessage};
 use actix_web::dev::ServiceResponse;
 use actix_web::{test, HttpResponse};
 use bytes::Bytes;
-use serde_json::{json};
+use serde_json::json;
 use std::time::Duration;
+use treblle_actix::extractors::ActixExtractor;
 use treblle_core::extractors::TreblleExtractor;
 
 #[actix_web::test]
@@ -54,11 +54,11 @@ async fn test_response_size_calculation() {
     let test_cases = vec![
         (
             json!({
-                        "key": "value",
-                        "nested": {
-                            "array": [1, 2, 3]
-                        }
-                    }),
+                "key": "value",
+                "nested": {
+                    "array": [1, 2, 3]
+                }
+            }),
             None, // No explicit Content-Length
         ),
         (json!("simple string"), Some(15)),

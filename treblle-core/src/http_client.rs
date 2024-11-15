@@ -59,11 +59,11 @@ impl TreblleClient {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::schema::PayloadData;
     use std::time::Duration;
     use tokio;
     use wiremock::matchers::{header, method};
     use wiremock::{Mock, MockServer, ResponseTemplate};
-    use crate::schema::PayloadData;
 
     #[tokio::test]
     async fn test_client_rotation() {

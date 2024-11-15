@@ -1,14 +1,14 @@
 use actix_web::{test, web, App, HttpResponse};
 use futures_util::FutureExt;
-use treblle_core::extractors::TreblleExtractor;
 use treblle_actix::extractors::ActixExtractor;
+use treblle_core::extractors::TreblleExtractor;
 
 pub fn create_test_request(headers: Vec<(&str, &str)>) -> actix_web::dev::ServiceRequest {
     let _app = test::init_service(
         App::new().default_service(web::to(|| async { HttpResponse::Ok().finish() })),
     )
-        .now_or_never()
-        .unwrap();
+    .now_or_never()
+    .unwrap();
 
     let mut req = test::TestRequest::default().uri("/test");
 
@@ -27,11 +27,7 @@ async fn test_url_construction() {
             "/test",
             "https://api.example.com/test",
         ),
-        (
-            vec![("Host", "localhost:8080")],
-            "/api/v1/users",
-            "http://localhost:8080/api/v1/users",
-        ),
+        (vec![("Host", "localhost:8080")], "/api/v1/users", "http://localhost:8080/api/v1/users"),
         (
             vec![("Host", "api.example.com"), ("X-Forwarded-Proto", "https")],
             "/test?query=value",
@@ -43,7 +39,7 @@ async fn test_url_construction() {
         let _app = test::init_service(
             App::new().default_service(web::to(|| async { HttpResponse::Ok().finish() })),
         )
-            .await;
+        .await;
 
         let mut req = test::TestRequest::default().uri(path);
         for (name, value) in headers {

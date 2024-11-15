@@ -71,12 +71,13 @@ where
         let treblle_client = Arc::<TreblleClient>::clone(&self.treblle_client);
         let start_time = Instant::now();
 
-        let should_process = !config.core.should_ignore_route(req.uri().path()) && req
-            .headers()
-            .get("Content-Type")
-            .and_then(|ct| ct.to_str().ok())
-            .map(|ct| ct.starts_with("application/json"))
-            .unwrap_or(false);
+        let should_process = !config.core.should_ignore_route(req.uri().path())
+            && req
+                .headers()
+                .get("Content-Type")
+                .and_then(|ct| ct.to_str().ok())
+                .map(|ct| ct.starts_with("application/json"))
+                .unwrap_or(false);
 
         if should_process {
             req.request().extensions_mut().insert(Bytes::new());

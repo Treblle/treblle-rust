@@ -7,17 +7,45 @@ scrape_configs:
     static_configs:
       - targets: ["localhost:9090"]
 
-  - job_name: "axum-test-service"
-    static_configs:
-      - targets: ["axum-test-service:8082"]
-    metrics_path: "/metrics"
-
-  - job_name: "mock-treblle-api"
-    static_configs:
-      - targets: ["mock-treblle-api:4321"]
-    metrics_path: "/metrics"
-
   - job_name: "k6"
+    metrics_path: "/metrics"
     static_configs:
       - targets: ["k6:6565"]
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: ".*_ms"
+        action: keep
+
+  - job_name: "treblle-services"
     metrics_path: "/metrics"
+    static_configs:
+      - targets:
+          - "axum-test-service:8082"
+          - "actix-test-service:8083"
+          - "rocket-test-service:8084"
+    metric_relabel_configs:
+      - source_labels: [__name__]
+        regex: "(requests_.*|middleware_.*|tokio_.*)"
+        action: keep
+      - target_label: "service"
+        source_labels: ["__address__"]
+        regex: "(.*):.*"
+        replacement: "$1"
+
+  - job_name: "mock-treblle-api"
+    metrics_path: "/metrics"
+    static_configs:
+      - targets: ["mock-treblle-api:4321"]
+
+  - job_name: "node"
+    static_configs:
+      - targets: ["node-exporter:9100"]
+    metrics_path: "/metrics"
+
+  - job_name: "cadvisor"
+    static_configs:
+      - targets: ["cadvisor:8080"]
+    metrics_path: "/metrics"
+
+rule_files:
+  - "recording_rules.yml"
